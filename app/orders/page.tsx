@@ -183,10 +183,10 @@ export default function OrdersPage() {
   const deal = Number(o?.deal_price ?? o?.offer_price ?? 0);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Pesanan dan Trip</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Pesanan dan Trip</h2>
           <p className="text-sm text-slate-500 mt-1">Cari trip, lihat rincian tarif, dan telusuri komplain penumpang atau driver.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -200,7 +200,7 @@ export default function OrdersPage() {
               setLoading(true);
               setDays(Number(e.target.value));
             }}
-            className="text-xs font-semibold rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700"
+            className="text-xs font-semibold rounded-full border border-slate-200 bg-white px-4 py-2 text-slate-700"
           >
             <option value={1}>24 jam terakhir</option>
             <option value={7}>7 hari terakhir</option>
@@ -214,7 +214,7 @@ export default function OrdersPage() {
               setReloadKey((k) => k + 1);
             }}
             disabled={refreshing}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 shadow-[0_6px_16px_-8px_rgba(60,80,130,0.35)] text-xs font-semibold text-slate-700 hover:bg-white disabled:opacity-60"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
             Muat ulang
@@ -223,7 +223,7 @@ export default function OrdersPage() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <div>
             {error}
@@ -240,8 +240,8 @@ export default function OrdersPage() {
               setLoading(true);
               setGroup(c.key);
             }}
-            className={`text-left rounded-2xl border p-4 bg-white transition shadow-sm ${
-              group === c.key ? 'border-blue-500 ring-2 ring-blue-500/15' : 'border-slate-200 hover:border-slate-300'
+            className={`text-left rounded-3xl border p-5 bg-white/80 backdrop-blur transition shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)] ${
+              group === c.key ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-white hover:border-slate-200'
             }`}
           >
             <div className="text-xs font-semibold text-slate-500">{c.label}</div>
@@ -257,7 +257,7 @@ export default function OrdersPage() {
             { label: 'Komisi dari trip', value: summary.commission, hint: 'Potongan dari saldo driver' },
             { label: 'Biaya platform', value: summary.platform_fee, hint: 'Rp1.000 per trip selesai' },
           ].map((k) => (
-            <div key={k.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div key={k.label} className="rounded-3xl border border-white bg-white/80 backdrop-blur p-5 shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]">
               <div className="text-xs font-semibold text-slate-500">{k.label}</div>
               <div className="mt-1.5 text-xl font-extrabold tabular-nums text-slate-900">{rp(k.value)}</div>
               <div className="text-[11px] text-slate-400 mt-0.5">{k.hint}</div>
@@ -266,7 +266,7 @@ export default function OrdersPage() {
         </div>
       )}
 
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <section className="bg-white/90 border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)] overflow-hidden">
         <form
           className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3"
           onSubmit={(e) => {
@@ -281,13 +281,13 @@ export default function OrdersPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Cari nama, nomor HP, plat, alamat, atau kode pesanan lalu tekan Enter"
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full pl-9 pr-4 py-2 text-sm rounded-full border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
           </div>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as 'all' | 'ride' | 'car')}
-            className="text-sm rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700"
+            className="text-sm rounded-full border border-slate-200 bg-white px-4 py-2 text-slate-700"
           >
             <option value="all">Motor dan mobil</option>
             <option value="ride">Pim Ride</option>
@@ -372,8 +372,8 @@ export default function OrdersPage() {
       {selectedId && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px]" onClick={() => setSelectedId(null)} />
-          <aside className="relative w-full max-w-xl bg-white h-full shadow-2xl flex flex-col">
-            <div className="px-6 h-16 border-b border-slate-200 flex items-center justify-between shrink-0">
+          <aside className="relative w-full max-w-xl bg-[#f6f8fc] h-full shadow-2xl flex flex-col sm:rounded-l-3xl overflow-hidden">
+            <div className="px-6 h-16 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3 min-w-0">
                 <h3 className="text-base font-bold text-slate-900">Detail pesanan</h3>
                 {o && (
@@ -401,7 +401,7 @@ export default function OrdersPage() {
                   <div className="text-[11px] text-slate-400 font-mono break-all">{String(o.id)}</div>
 
                   {detail.sos.length > 0 && (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
+                    <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3">
                       <div className="flex items-center gap-2 text-sm font-bold text-rose-700">
                         <Siren className="w-4 h-4" /> Ada tombol SOS pada perjalanan ini
                       </div>
@@ -446,7 +446,7 @@ export default function OrdersPage() {
 
                   <section>
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Rincian tarif</h4>
-                    <dl className="mt-3 rounded-xl border border-slate-200 divide-y divide-slate-100 text-sm">
+                    <dl className="mt-3 rounded-2xl border border-white bg-white shadow-sm divide-y divide-slate-100 text-sm overflow-hidden">
                       {[
                         ['Tarif rekomendasi sistem', rp(Number(o.recommended_price ?? 0))],
                         ['Tawaran penumpang', rp(Number(o.offer_price ?? 0))],
@@ -459,7 +459,7 @@ export default function OrdersPage() {
                           <dd className="font-semibold text-slate-900 tabular-nums">{v}</dd>
                         </div>
                       ))}
-                      <div className="px-4 py-3 flex justify-between gap-3 bg-slate-50 rounded-b-xl">
+                      <div className="px-4 py-3 flex justify-between gap-3 bg-slate-50">
                         <dt className="font-semibold text-slate-700">Total tunai dibayar penumpang</dt>
                         <dd className="font-extrabold text-slate-900 tabular-nums">{rp(deal + Number(o.platform_fee ?? 0))}</dd>
                       </div>
@@ -480,7 +480,7 @@ export default function OrdersPage() {
                         extra: detail.driver ? `${detail.driver.plate ?? '-'} - ${detail.driver.model ?? '-'}` : null,
                       },
                     ].map((p) => (
-                      <div key={p.title} className="rounded-xl border border-slate-200 p-4">
+                      <div key={p.title} className="rounded-2xl border border-white bg-white shadow-sm p-4">
                         <div className="text-[11px] text-slate-400">{p.title}</div>
                         <div className="text-sm font-semibold text-slate-900 mt-0.5">{p.name ?? '-'}</div>
                         {p.extra && <div className="text-xs text-slate-500 mt-0.5">{p.extra}</div>}
@@ -496,7 +496,7 @@ export default function OrdersPage() {
                   {detail.bids.length > 0 && (
                     <section>
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Tawaran driver ({detail.bids.length})</h4>
-                      <ul className="mt-3 rounded-xl border border-slate-200 divide-y divide-slate-100">
+                      <ul className="mt-3 rounded-2xl border border-white bg-white shadow-sm divide-y divide-slate-100">
                         {detail.bids.map((b, i) => (
                           <li key={i} className="px-4 py-2.5 flex justify-between text-sm">
                             <span className="text-slate-600">
@@ -514,7 +514,7 @@ export default function OrdersPage() {
                   {detail.review && (
                     <section>
                       <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">Ulasan penumpang</h4>
-                      <div className="mt-3 rounded-xl border border-slate-200 p-4 text-sm">
+                      <div className="mt-3 rounded-2xl border border-white bg-white shadow-sm p-4 text-sm">
                         <span
                           className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${
                             detail.review.rating_type === 'up'
@@ -531,7 +531,7 @@ export default function OrdersPage() {
                   )}
 
                   {detail.reports > 0 && (
-                    <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
                       Ada {detail.reports} laporan dari chat pesanan ini. Buka menu Laporan Pengguna untuk membaca isinya.
                     </div>
                   )}
