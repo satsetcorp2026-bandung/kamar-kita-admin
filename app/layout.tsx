@@ -19,6 +19,7 @@ import {
   Route,
   Siren,
   TrendingUp,
+  Wallet,
   LogOut,
   Loader2,
   Menu,
@@ -36,6 +37,7 @@ const navGroups: NavGroup[] = [
       { name: 'Ringkasan', href: '/', icon: LayoutDashboard },
       { name: 'Laporan Pengguna', href: '/laporan', icon: Flag, badgeKey: 'reports' },
       { name: 'Laporan Investor', href: '/analitik', icon: TrendingUp },
+      { name: 'Keuangan', href: '/keuangan', icon: Wallet },
     ],
   },
   {
