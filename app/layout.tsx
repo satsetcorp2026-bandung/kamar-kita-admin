@@ -18,6 +18,7 @@ import {
   Bike,
   Route,
   Siren,
+  TrendingUp,
   LogOut,
   Loader2,
   Menu,
@@ -34,6 +35,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Ringkasan', href: '/', icon: LayoutDashboard },
       { name: 'Laporan Pengguna', href: '/laporan', icon: Flag, badgeKey: 'reports' },
+      { name: 'Laporan Investor', href: '/analitik', icon: TrendingUp },
     ],
   },
   {
@@ -291,7 +293,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     content = (
       <div className="min-h-screen flex">
         {/* Sidebar desktop */}
-        <aside className="hidden lg:block w-64 shrink-0 bg-slate-950 border-r border-white/5 sticky top-0 h-screen">
+        <aside className="hidden lg:block print:!hidden w-64 shrink-0 bg-slate-950 border-r border-white/5 sticky top-0 h-screen">
           {sidebar}
         </aside>
 
@@ -313,7 +315,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
 
         <div className="flex-1 min-w-0 flex flex-col">
-          <header className="sticky top-0 z-30 h-16 bg-white/85 backdrop-blur border-b border-slate-200 px-4 sm:px-6 lg:px-8 flex items-center gap-3">
+          <header className="print:hidden sticky top-0 z-30 h-16 bg-white/85 backdrop-blur border-b border-slate-200 px-4 sm:px-6 lg:px-8 flex items-center gap-3">
             <button
               onClick={() => setDrawerOpen(true)}
               className="lg:hidden p-2 -ml-2 rounded-lg text-slate-600 hover:bg-slate-100"
