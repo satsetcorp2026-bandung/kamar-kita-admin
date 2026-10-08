@@ -16,6 +16,7 @@ import {
   ShieldAlert,
   Flag,
   Bike,
+  Route,
   LogOut,
   Loader2,
   Menu,
@@ -36,7 +37,10 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'PimPim',
-    items: [{ name: 'Driver Pim', href: '/drivers', icon: Bike, badgeKey: 'drivers' }],
+    items: [
+      { name: 'Driver Pim', href: '/drivers', icon: Bike, badgeKey: 'drivers' },
+      { name: 'Pesanan dan Trip', href: '/orders', icon: Route },
+    ],
   },
   {
     label: 'Layanan',
