@@ -1,17 +1,9 @@
 'use client';
 
-import React, { useEffect, useState, useTransition, useCallback } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { supabase } from '../lib/supabase';
-import { 
-  ShieldAlert, 
-  Search, 
-  RefreshCw, 
-  Phone, 
-  MapPin, 
-  Trash2, 
-  Radio
-} from 'lucide-react';
+import { Search, RefreshCw, Phone, MapPin, Trash2, Radio, AlertTriangle, X, Loader2 } from 'lucide-react';
 
 interface SosVolunteer {
   id: string;
@@ -27,286 +19,193 @@ interface SosVolunteer {
   created_at: string;
 }
 
-export default function SosAdminPage() {
-  const [volunteers, setVolunteers] = useState<SosVolunteer[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [, startTransition] = useTransition();
+const D3 = 'shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)]';
+const CARD = 'bg-white/80 backdrop-blur border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]';
 
-  const loadData = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
+function errText(e: unknown) {
+  if (e && typeof e === 'object' && 'message' in e) return String((e as { message: unknown }).message);
+  return 'Terjadi kesalahan.';
+}
+
+export default function RelawanSosPage() {
+  const [items, setItems] = useState<SosVolunteer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      const { data, error: e } = await supabase
         .from('sos_volunteers')
         .select('*')
         .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setVolunteers((data as SosVolunteer[]) || []);
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Terjadi kendala memuat data';
-      alert('Gagal memuat relawan: ' + errorMessage);
-    } finally {
+      if (!alive) return;
+      if (e) setError('Gagal memuat relawan: ' + e.message);
+      else { setItems((data ?? []) as SosVolunteer[]); setError(''); }
       setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    let isMounted = true;
-
-    async function init() {
-      try {
-        const { data, error } = await supabase
-          .from('sos_volunteers')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-        if (isMounted) {
-          setVolunteers((data as SosVolunteer[]) || []);
-        }
-      } catch (err: unknown) {
-        if (isMounted) {
-          const errorMessage = err instanceof Error ? err.message : 'Terjadi kendala memuat data';
-          alert('Gagal memuat relawan: ' + errorMessage);
-        }
-      } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
-      }
-    }
-
-    init();
-
-    return () => {
-      isMounted = false;
     };
-  }, []);
+    run();
+    return () => { alive = false; };
+  }, [reloadKey]);
 
-  const handleManualRefresh = () => {
-    setLoading(true);
-    loadData();
+  const reload = () => { setLoading(true); setReloadKey((k) => k + 1); };
+
+  const toggle = async (id: string, current: boolean) => {
+    const { error: e } = await supabase.from('sos_volunteers').update({ is_active: !current }).eq('id', id);
+    if (e) { setError(errText(e)); return; }
+    setItems((prev) => prev.map((v) => (v.id === id ? { ...v, is_active: !current } : v)));
   };
 
-  const handleToggleActive = async (id: string, currentStatus: boolean) => {
-    try {
-      const nextStatus = !currentStatus;
-      const { error } = await supabase
-        .from('sos_volunteers')
-        .update({ is_active: nextStatus })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      startTransition(() => {
-        setVolunteers((prev) =>
-          prev.map((item) => (item.id === id ? { ...item, is_active: nextStatus } : item))
-        );
-      });
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Gagal memperbarui status';
-      alert(errorMessage);
-    }
+  const remove = async (id: string, name: string) => {
+    if (!window.confirm(`Hapus relawan "${name}" dari sistem?`)) return;
+    const { error: e } = await supabase.from('sos_volunteers').delete().eq('id', id);
+    if (e) { setError(errText(e)); return; }
+    setItems((prev) => prev.filter((v) => v.id !== id));
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Hapus relawan "${name}" dari sistem?`)) return;
-
-    try {
-      const { error } = await supabase
-        .from('sos_volunteers')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      startTransition(() => {
-        setVolunteers((prev) => prev.filter((item) => item.id !== id));
-      });
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : 'Gagal menghapus data';
-      alert(errorMessage);
-    }
-  };
-
-  const filtered = volunteers.filter((v) =>
-    (v.name || '').toLowerCase().includes(search.toLowerCase()) ||
-    (v.profession || '').toLowerCase().includes(search.toLowerCase()) ||
-    (v.posko_name || '').toLowerCase().includes(search.toLowerCase()) ||
+  const q = search.toLowerCase();
+  const filtered = items.filter((v) =>
+    (v.name || '').toLowerCase().includes(q) ||
+    (v.profession || '').toLowerCase().includes(q) ||
+    (v.posko_name || '').toLowerCase().includes(q) ||
     (v.phone || '').includes(search)
   );
 
-  return (
-    <div className="p-8 max-w-7xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-5">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center text-orange-600">
-              <ShieldAlert className="w-5 h-5" />
-            </div>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">Kelola Relawan Siaga SOS</h1>
-          </div>
-          <p className="text-sm text-gray-500 mt-1">
-            Data petugas, tenaga medis, dan relawan warga yang terhubung ke radar darurat warga kos.
-          </p>
-        </div>
+  const stats = useMemo(() => ({
+    total: items.length,
+    aktif: items.filter((v) => v.is_active).length,
+    off: items.filter((v) => !v.is_active).length,
+    tolongin: items.filter((v) => v.source === 'tolongin').length,
+  }), [items]);
 
-        {/* Action Bar */}
-        <div className="flex items-center gap-3">
+  const kpis = [
+    { label: 'Total relawan', value: stats.total, tint: 'bg-gradient-to-br from-[#e3ecfb] to-[#cddcf5]', text: 'text-[#27468c]' },
+    { label: 'Aktif di radar', value: stats.aktif, tint: 'bg-gradient-to-br from-[#dcf3ea] to-[#bfe5d6]', text: 'text-[#1d6a50]' },
+    { label: 'Nonaktif', value: stats.off, tint: 'bg-gradient-to-br from-[#eceff4] to-[#d8dee8]', text: 'text-[#475569]' },
+    { label: 'Dari Sobat Tolongin', value: stats.tolongin, tint: 'bg-gradient-to-br from-[#fdeedb] to-[#f7d9b4]', text: 'text-[#8a5314]' },
+  ];
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Relawan Siaga SOS</h2>
+          <p className="text-sm text-slate-500 mt-1">Petugas, tenaga medis, dan relawan warga yang terhubung ke radar darurat.</p>
+        </div>
+        <div className="flex items-center gap-2">
           <div className="relative">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Cari nama, profesi, posko..."
+              placeholder="Cari nama, profesi, posko"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm w-64 focus:outline-none focus:ring-1 focus:ring-black focus:border-black transition"
+              className="pl-10 pr-4 py-2 bg-white rounded-full border border-slate-200 text-sm w-64 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
           </div>
-          <button
-            onClick={handleManualRefresh}
-            disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg text-sm font-medium text-gray-700 transition"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
+          <button onClick={reload} className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 shadow-[0_6px_16px_-8px_rgba(60,80,130,0.35)] text-xs font-semibold text-slate-700 hover:bg-white">
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />Muat ulang
           </button>
         </div>
       </div>
 
-      {/* Tabel Utama */}
-      <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+      {error && (
+        <div className="flex items-start justify-between gap-3 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-2xl px-4 py-3">
+          <span className="flex items-start gap-2"><AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />{error}</span>
+          <button onClick={() => setError('')} aria-label="Tutup"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {kpis.map((k) => (
+          <div key={k.label} className={`${k.tint} ${D3} rounded-3xl p-4`}>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{k.label}</div>
+            <div className={`text-3xl font-extrabold mt-1 ${k.text}`}>{k.value}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className={`${CARD} overflow-hidden`}>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50/75 border-b border-gray-200 text-gray-500 font-medium">
-              <tr>
-                <th className="py-3 px-4">Relawan</th>
-                <th className="py-3 px-4">Profesi / Peran</th>
-                <th className="py-3 px-4">Posko / Satuan</th>
-                <th className="py-3 px-4">Titik Koordinat</th>
-                <th className="py-3 px-4">Pintu Masuk</th>
-                <th className="py-3 px-4 text-center">Status Radar</th>
-                <th className="py-3 px-4 text-right">Aksi</th>
+            <thead>
+              <tr className="text-[11px] uppercase tracking-wider text-slate-400 bg-slate-50/70">
+                <th className="py-3 px-4 font-semibold">Relawan</th>
+                <th className="py-3 px-3 font-semibold">Profesi</th>
+                <th className="py-3 px-3 font-semibold">Posko</th>
+                <th className="py-3 px-3 font-semibold">Koordinat</th>
+                <th className="py-3 px-3 font-semibold">Asal data</th>
+                <th className="py-3 px-3 font-semibold text-center">Radar</th>
+                <th className="py-3 px-4 font-semibold text-right">Aksi</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100 text-gray-700">
-              {loading ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400">
-                    <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-gray-300" />
-                    Memuat data relawan...
-                  </td>
-                </tr>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {loading && items.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-14 text-slate-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="text-center py-12 text-gray-400">
-                    Tidak ada relawan yang cocok dengan pencarian.
-                  </td>
-                </tr>
+                <tr><td colSpan={7} className="text-center py-12 text-slate-400">Tidak ada relawan yang cocok.</td></tr>
               ) : (
-                filtered.map((item) => {
-                  const cleanPhone = item.phone ? item.phone.replace(/[^0-9]/g, '').replace(/^0/, '62') : '';
+                filtered.map((v) => {
+                  const wa = v.phone ? v.phone.replace(/[^0-9]/g, '').replace(/^0/, '62') : '';
                   return (
-                    <tr key={item.id} className="hover:bg-gray-50/50 transition">
-                      {/* Identitas */}
+                    <tr key={v.id} className="hover:bg-slate-50/60 transition">
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
-                          {item.avatar_url ? (
-                            <Image
-                              src={item.avatar_url}
-                              alt={item.name}
-                              width={36}
-                              height={36}
-                              unoptimized
-                              className="w-9 h-9 rounded-full object-cover border border-gray-200 bg-gray-100"
-                            />
+                          {v.avatar_url ? (
+                            <Image src={v.avatar_url} alt={v.name} width={36} height={36} unoptimized className="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-100" />
                           ) : (
-                            <div className="w-9 h-9 rounded-full bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-600 text-xs">
-                              {item.name ? item.name.charAt(0).toUpperCase() : 'R'}
+                            <div className="w-9 h-9 rounded-full bg-gradient-to-b from-[#4a98ad] to-[#2f7088] flex items-center justify-center font-bold text-white text-xs">
+                              {v.name ? v.name.charAt(0).toUpperCase() : 'R'}
                             </div>
                           )}
                           <div>
-                            <div className="font-semibold text-gray-900 leading-tight">{item.name}</div>
-                            <div className="text-xs text-gray-500 font-mono mt-0.5">{item.phone}</div>
+                            <div className="font-semibold text-slate-800 leading-tight">{v.name}</div>
+                            <div className="text-xs text-slate-400 font-mono mt-0.5">{v.phone}</div>
                           </div>
                         </div>
                       </td>
-
-                      {/* Profesi */}
-                      <td className="py-3 px-4">
-                        <span className="font-medium text-gray-900">{item.profession || '-'}</span>
+                      <td className="py-3 px-3 font-medium text-slate-800">{v.profession || '-'}</td>
+                      <td className="py-3 px-3 text-xs text-slate-600">
+                        {v.posko_name || <span className="text-slate-400 italic">Personal / Rumah</span>}
                       </td>
-
-                      {/* Posko */}
-                      <td className="py-3 px-4">
-                        <span className="text-gray-600 text-xs">
-                          {item.posko_name || <span className="text-gray-400 italic">Personal / Rumah</span>}
-                        </span>
-                      </td>
-
-                      {/* Koordinat & Google Maps Link */}
-                      <td className="py-3 px-4 font-mono text-xs text-gray-500">
-                        {item.latitude && item.longitude ? (
-                          <a
-                            href={`https://www.google.com/maps?q=${item.latitude},${item.longitude}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 hover:text-blue-600 hover:underline"
-                          >
-                            <MapPin className="w-3 h-3 text-gray-400" />
-                            {Number(item.latitude).toFixed(4)}, {Number(item.longitude).toFixed(4)}
+                      <td className="py-3 px-3 font-mono text-xs text-slate-500">
+                        {v.latitude && v.longitude ? (
+                          <a href={`https://www.google.com/maps?q=${v.latitude},${v.longitude}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 hover:text-blue-600 hover:underline">
+                            <MapPin className="w-3 h-3 text-slate-400" />
+                            {Number(v.latitude).toFixed(4)}, {Number(v.longitude).toFixed(4)}
                           </a>
                         ) : (
-                          <span className="text-gray-400 italic font-sans">Belum diset</span>
+                          <span className="text-slate-400 italic font-sans">Belum diset</span>
                         )}
                       </td>
-
-                      {/* Asal Data */}
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium border ${
-                          item.source === 'tolongin'
-                            ? 'bg-orange-50 text-orange-700 border-orange-200'
-                            : 'bg-blue-50 text-blue-700 border-blue-200'
+                      <td className="py-3 px-3">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                          v.source === 'tolongin' ? 'bg-orange-50 text-orange-700 border-orange-200' : 'bg-blue-50 text-blue-700 border-blue-200'
                         }`}>
-                          {item.source === 'tolongin' ? 'Sobat Tolongin' : 'Mandiri SOS'}
+                          {v.source === 'tolongin' ? 'Sobat Tolongin' : 'Mandiri SOS'}
                         </span>
                       </td>
-
-                      {/* Status Toggle */}
-                      <td className="py-3 px-4 text-center">
+                      <td className="py-3 px-3 text-center">
                         <button
-                          onClick={() => handleToggleActive(item.id, item.is_active)}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition ${
-                            item.is_active
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                              : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+                          onClick={() => toggle(v.id, v.is_active)}
+                          className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border transition ${
+                            v.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
                           }`}
                         >
-                          <Radio className={`w-3 h-3 ${item.is_active ? 'text-emerald-600' : 'text-gray-400'}`} />
-                          {item.is_active ? 'Aktif' : 'Off'}
+                          <Radio className={`w-3 h-3 ${v.is_active ? 'text-emerald-600' : 'text-slate-400'}`} />
+                          {v.is_active ? 'Aktif' : 'Off'}
                         </button>
                       </td>
-
-                      {/* Action */}
                       <td className="py-3 px-4 text-right">
-                        <div className="inline-flex items-center gap-1.5">
-                          {cleanPhone && (
-                            <a
-                              href={`https://wa.me/${cleanPhone}`}
-                              target="_blank"
-                              rel="noreferrer"
-                              title="Chat WhatsApp"
-                              className="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-gray-100 rounded-md transition"
-                            >
+                        <div className="inline-flex items-center gap-1">
+                          {wa && (
+                            <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" title="Chat WhatsApp" className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-full transition">
                               <Phone className="w-4 h-4" />
                             </a>
                           )}
-                          <button
-                            onClick={() => handleDelete(item.id, item.name)}
-                            title="Hapus"
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition"
-                          >
+                          <button onClick={() => remove(v.id, v.name)} title="Hapus" className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-full transition">
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
