@@ -89,6 +89,7 @@ export default function OrdersPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
 
   const [group, setGroup] = useState<Group>('all');
   const [days, setDays] = useState(30);
@@ -119,6 +120,7 @@ export default function OrdersPage() {
         setOrders((listRes.data as OrderRow[]) ?? []);
       }
       if (!sumRes.error && sumRes.data) setSummary(sumRes.data as Summary);
+      setUpdatedAt(new Date());
       setLoading(false);
       setRefreshing(false);
     }
@@ -127,6 +129,13 @@ export default function OrdersPage() {
       alive = false;
     };
   }, [group, days, search, reloadKey]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      if (document.visibilityState === 'visible') setReloadKey((k) => k + 1);
+    }, 30000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -180,7 +189,11 @@ export default function OrdersPage() {
           <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Pesanan dan Trip</h2>
           <p className="text-sm text-slate-500 mt-1">Cari trip, lihat rincian tarif, dan telusuri komplain penumpang atau driver.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-full">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Langsung{updatedAt ? ` - ${updatedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}` : ''}
+          </span>
           <select
             value={days}
             onChange={(e) => {

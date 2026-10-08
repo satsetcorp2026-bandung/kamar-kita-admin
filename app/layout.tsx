@@ -17,6 +17,7 @@ import {
   Flag,
   Bike,
   Route,
+  Siren,
   LogOut,
   Loader2,
   Menu,
@@ -24,7 +25,7 @@ import {
   Lock,
 } from 'lucide-react';
 
-type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeKey?: 'reports' | 'drivers' };
+type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeKey?: 'reports' | 'drivers' | 'sos' };
 type NavGroup = { label: string; items: NavItem[] };
 
 const navGroups: NavGroup[] = [
@@ -55,7 +56,10 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Keselamatan',
-    items: [{ name: 'Relawan Siaga SOS', href: '/sos', icon: ShieldAlert }],
+    items: [
+      { name: 'SOS Perjalanan', href: '/sos-perjalanan', icon: Siren, badgeKey: 'sos' },
+      { name: 'Relawan Siaga SOS', href: '/sos', icon: ShieldAlert },
+    ],
   },
   {
     label: 'Pemasaran',
@@ -68,7 +72,7 @@ const allItems = navGroups.flatMap((g) => g.items);
 function titleFor(pathname: string) {
   const exact = allItems.find((i) => i.href === pathname);
   if (exact) return exact.name;
-  const prefix = allItems.find((i) => i.href !== '/' && pathname.startsWith(i.href));
+  const prefix = allItems.find((i) => i.href !== '/' && pathname.startsWith(i.href + '/'));
   return prefix ? prefix.name : 'Konsol Admin';
 }
 
@@ -81,6 +85,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [openReports, setOpenReports] = useState(0);
   const [pendingDrivers, setPendingDrivers] = useState(0);
+  const [openSos, setOpenSos] = useState(0);
+  const [metaTick, setMetaTick] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isLogin = pathname === '/login';
@@ -145,6 +151,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         setOpenReports(Number((summary.data as { open?: number }).open ?? 0));
       }
 
+      const sos = await supabase.rpc('admin_sos_summary');
+      if (isMounted && !sos.error && sos.data) {
+        setOpenSos(Number((sos.data as { open?: number }).open ?? 0));
+      }
+
       const drv = await supabase.rpc('admin_driver_summary');
       if (isMounted && !drv.error && drv.data) {
         setPendingDrivers(Number((drv.data as { pending?: number }).pending ?? 0));
@@ -155,7 +166,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return () => {
       isMounted = false;
     };
-  }, [isAuthenticated, pathname]);
+  }, [isAuthenticated, pathname, metaTick]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const t = setInterval(() => setMetaTick((k) => k + 1), 30000);
+    return () => clearInterval(t);
+  }, [isAuthenticated]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -221,8 +238,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <div className="space-y-0.5">
                 {group.items.map((item) => {
                   const Icon = item.icon;
-                  const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-                  const badge = item.badgeKey === 'reports' ? openReports : item.badgeKey === 'drivers' ? pendingDrivers : 0;
+                  const isActive = item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(item.href + '/');
+                  const badge = item.badgeKey === 'reports' ? openReports : item.badgeKey === 'drivers' ? pendingDrivers : item.badgeKey === 'sos' ? openSos : 0;
                   return (
                     <Link
                       key={item.href}
