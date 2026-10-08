@@ -20,6 +20,7 @@ import {
   Siren,
   TrendingUp,
   Wallet,
+  MapPin,
   LogOut,
   Loader2,
   Menu,
@@ -45,6 +46,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Driver Pim', href: '/drivers', icon: Bike, badgeKey: 'drivers' },
       { name: 'Pesanan dan Trip', href: '/orders', icon: Route },
+      { name: 'Peta Driver Langsung', href: '/peta-driver', icon: MapPin },
     ],
   },
   {
