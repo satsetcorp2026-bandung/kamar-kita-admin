@@ -342,10 +342,10 @@ export default function DriversPage() {
   const belowLimit = (d: Driver) => (d.credit_balance ?? 0) <= (d.credit_limit ?? -20000);
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Driver Pim Ride dan Pim Car</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Driver Pim Ride dan Pim Car</h2>
           <p className="text-sm text-slate-500 mt-1">
             Verifikasi pendaftar, kelola kendaraan dan saldo, serta pantau riwayat trip setiap driver.
           </p>
@@ -356,7 +356,7 @@ export default function DriversPage() {
             setReloadKey((k) => k + 1);
           }}
           disabled={refreshing}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 transition w-fit"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/80 shadow-[0_6px_16px_-8px_rgba(60,80,130,0.35)] text-xs font-semibold text-slate-700 hover:bg-white disabled:opacity-60 transition w-fit"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
           Muat ulang
@@ -378,8 +378,8 @@ export default function DriversPage() {
           <button
             key={c.key}
             onClick={() => setStatusFilter(c.key)}
-            className={`text-left rounded-2xl border p-4 bg-white transition shadow-sm ${
-              statusFilter === c.key ? 'border-blue-500 ring-2 ring-blue-500/15' : 'border-slate-200 hover:border-slate-300'
+            className={`text-left rounded-3xl border p-5 bg-white/80 backdrop-blur transition shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)] ${
+              statusFilter === c.key ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-white hover:border-slate-200'
             }`}
           >
             <div className="text-xs font-semibold text-slate-500">{c.label}</div>
@@ -388,7 +388,7 @@ export default function DriversPage() {
         ))}
       </div>
 
-      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+      <section className="bg-white/90 border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.3)] overflow-hidden">
         <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -396,13 +396,13 @@ export default function DriversPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Cari nama, nomor HP, atau plat"
-              className="w-full pl-9 pr-3 py-2 text-sm rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+              className="w-full pl-9 pr-3 py-2 text-sm rounded-full border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
             />
           </div>
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as 'all' | 'ride' | 'car')}
-            className="text-sm rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+            className="text-sm rounded-full border border-slate-200 bg-white px-4 py-2 text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
           >
             <option value="all">Motor dan mobil</option>
             <option value="ride">Motor (Pim Ride)</option>
@@ -493,8 +493,8 @@ export default function DriversPage() {
       {selected && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px]" onClick={() => setSelectedId(null)} />
-          <aside className="relative w-full max-w-2xl bg-white h-full shadow-2xl flex flex-col">
-            <div className="px-6 pt-5 pb-0 border-b border-slate-200 shrink-0">
+          <aside className="relative w-full max-w-2xl bg-[#f6f8fc] h-full shadow-2xl flex flex-col sm:rounded-l-3xl overflow-hidden">
+            <div className="px-6 pt-5 pb-0 border-b border-slate-200 bg-white shrink-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
@@ -522,7 +522,7 @@ export default function DriversPage() {
                     key={k}
                     onClick={() => setTab(k)}
                     className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 transition ${
-                      tab === k ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+                      tab === k ? 'border-[#2f7088] text-[#2f7088]' : 'border-transparent text-slate-500 hover:text-slate-800'
                     }`}
                   >
                     {label}
@@ -542,7 +542,7 @@ export default function DriversPage() {
                     <p className="text-sm text-slate-400 text-center py-10">Driver ini belum mengunggah dokumen.</p>
                   ) : (
                     docs.map((doc) => (
-                      <div key={doc.document_type} className="rounded-xl border border-slate-200 overflow-hidden">
+                      <div key={doc.document_type} className="rounded-2xl border border-white bg-white shadow-sm overflow-hidden">
                         <div className="px-4 py-3 flex items-center justify-between bg-slate-50 border-b border-slate-100">
                           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
                             <FileText className="w-4 h-4 text-slate-400" />
@@ -608,7 +608,7 @@ export default function DriversPage() {
                                   <button
                                     disabled={busy}
                                     onClick={() => reviewDoc(selected, doc.document_type, 'rejected', rejectReason)}
-                                    className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold disabled:opacity-60"
+                                    className="px-4 py-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold disabled:opacity-60"
                                   >
                                     Kirim penolakan
                                   </button>
@@ -625,7 +625,7 @@ export default function DriversPage() {
                                 <button
                                   disabled={busy || doc.status === 'approved'}
                                   onClick={() => reviewDoc(selected, doc.document_type, 'approved')}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-40"
+                                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-40"
                                 >
                                   <CheckCircle2 className="w-3.5 h-3.5" /> Setujui
                                 </button>
@@ -635,7 +635,7 @@ export default function DriversPage() {
                                     setRejecting(doc.document_type);
                                     setRejectReason('');
                                   }}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-40"
+                                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-40"
                                 >
                                   <XCircle className="w-3.5 h-3.5" /> Tolak
                                 </button>
@@ -674,7 +674,7 @@ export default function DriversPage() {
                   </dl>
 
                   {selected.vehicle_type === 'car' ? (
-                    <div className="rounded-xl border border-slate-200 p-4">
+                    <div className="rounded-2xl border border-white bg-white shadow-sm p-4">
                       <div className="text-sm font-semibold text-slate-900">Kelas mobil</div>
                       <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                         Kecil untuk 4 kursi, Besar untuk 6 sampai 7 kursi. Driver Besar boleh menerima order Kecil, tapi driver Kecil tidak bisa menerima order Besar.
@@ -685,9 +685,9 @@ export default function DriversPage() {
                             key={c}
                             disabled={busy || selected.car_class === c}
                             onClick={() => setCarClass(selected, c)}
-                            className={`px-4 py-2 rounded-lg text-xs font-semibold border transition ${
+                            className={`px-5 py-2 rounded-full text-xs font-semibold border transition ${
                               (selected.car_class ?? 'small') === c
-                                ? 'bg-blue-600 border-blue-600 text-white'
+                                ? 'bg-gradient-to-b from-[#4a98ad] to-[#2f7088] border-transparent text-white shadow-md'
                                 : 'border-slate-200 text-slate-700 hover:bg-slate-50'
                             }`}
                           >
@@ -700,7 +700,7 @@ export default function DriversPage() {
                     <p className="text-xs text-slate-400">Motor tidak punya kelas.</p>
                   )}
 
-                  <div className="rounded-xl border border-slate-200 p-4">
+                  <div className="rounded-2xl border border-white bg-white shadow-sm p-4">
                     <div className="text-sm font-semibold text-slate-900">Akses driver</div>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       Menonaktifkan driver membuatnya offline dan tidak bisa menerima order. Dokumen dan saldonya tetap tersimpan.
@@ -710,7 +710,7 @@ export default function DriversPage() {
                         <button
                           disabled={busy}
                           onClick={() => setDriverStatus(selected, 'approved')}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" /> Aktifkan driver
                         </button>
@@ -719,7 +719,7 @@ export default function DriversPage() {
                         <button
                           disabled={busy}
                           onClick={() => setDriverStatus(selected, 'rejected')}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
                         >
                           <XCircle className="w-3.5 h-3.5" /> Tolak / nonaktifkan
                         </button>
@@ -728,7 +728,7 @@ export default function DriversPage() {
                         <button
                           disabled={busy}
                           onClick={() => setDriverStatus(selected, 'pending')}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold disabled:opacity-50"
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold disabled:opacity-50"
                         >
                           <Clock className="w-3.5 h-3.5" /> Kembalikan ke menunggu
                         </button>
@@ -739,7 +739,7 @@ export default function DriversPage() {
               ) : tab === 'saldo' ? (
                 <div className="space-y-5">
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-slate-200 p-4">
+                    <div className="rounded-2xl border border-white bg-white shadow-sm p-4">
                       <div className="text-xs text-slate-400 flex items-center gap-1.5">
                         <Wallet className="w-3.5 h-3.5" /> Saldo sekarang
                       </div>
@@ -748,13 +748,13 @@ export default function DriversPage() {
                       </div>
                       {belowLimit(selected) && <div className="text-[11px] text-rose-600 font-medium mt-1">Di bawah batas, tidak bisa terima order</div>}
                     </div>
-                    <div className="rounded-xl border border-slate-200 p-4">
+                    <div className="rounded-2xl border border-white bg-white shadow-sm p-4">
                       <div className="text-xs text-slate-400">Batas minimum</div>
                       <div className="mt-1 text-2xl font-extrabold tabular-nums text-slate-900">{rp(selected.credit_limit ?? -20000)}</div>
                     </div>
                   </div>
 
-                  <div className="rounded-xl border border-slate-200 p-4 space-y-3">
+                  <div className="rounded-2xl border border-white bg-white shadow-sm p-4 space-y-3">
                     <div className="text-sm font-semibold text-slate-900">Isi atau koreksi saldo</div>
                     <div className="flex flex-wrap gap-1.5">
                       {[20000, 50000, 100000, 200000].map((v) => (
@@ -785,7 +785,7 @@ export default function DriversPage() {
                     <button
                       disabled={busy}
                       onClick={() => submitTopup(selected)}
-                      className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold disabled:opacity-60"
+                      className="px-5 py-2 rounded-full bg-gradient-to-b from-[#4a98ad] to-[#2f7088] hover:opacity-90 text-white text-xs font-semibold shadow-md disabled:opacity-60"
                     >
                       {busy ? 'Memproses...' : 'Simpan saldo'}
                     </button>
@@ -797,7 +797,7 @@ export default function DriversPage() {
                     {creditLog.length === 0 ? (
                       <p className="text-sm text-slate-400 py-4 text-center">Belum ada mutasi.</p>
                     ) : (
-                      <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                      <ul className="divide-y divide-slate-100 rounded-2xl border border-white bg-white shadow-sm">
                         {creditLog.map((l) => (
                           <li key={l.id} className="px-4 py-3 flex items-center gap-3">
                             <div className="min-w-0 flex-1">
@@ -822,7 +822,7 @@ export default function DriversPage() {
                   {trips.length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-10">Belum ada trip.</p>
                   ) : (
-                    <ul className="divide-y divide-slate-100 rounded-xl border border-slate-200">
+                    <ul className="divide-y divide-slate-100 rounded-2xl border border-white bg-white shadow-sm">
                       {trips.map((t) => (
                         <li key={t.id} className="px-4 py-3.5">
                           <div className="flex items-center justify-between gap-3">
@@ -849,12 +849,12 @@ export default function DriversPage() {
             </div>
 
             {tab === 'verifikasi' && (
-              <div className="px-6 py-4 border-t border-slate-200 shrink-0 flex flex-wrap items-center gap-2">
+              <div className="px-6 py-4 border-t border-slate-200 bg-white shrink-0 flex flex-wrap items-center gap-2">
                 {statusOf(selected) !== 'approved' && (
                   <button
                     disabled={busy}
                     onClick={() => setDriverStatus(selected, 'approved')}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
                   >
                     <CheckCircle2 className="w-3.5 h-3.5" /> Aktifkan driver
                   </button>
@@ -863,7 +863,7 @@ export default function DriversPage() {
                   <button
                     disabled={busy}
                     onClick={() => setDriverStatus(selected, 'rejected')}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
                   >
                     <XCircle className="w-3.5 h-3.5" /> Tolak pendaftaran
                   </button>
