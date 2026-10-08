@@ -160,10 +160,10 @@ export default function PetaDriverPage() {
   const withoutPos = data ? Math.max(0, data.online_total - data.drivers.length) : 0;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4">
+    <div className="max-w-7xl mx-auto space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Peta Driver Langsung</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Peta Driver Langsung</h2>
           <p className="text-sm text-slate-500 mt-1">Posisi driver yang sedang online. Diperbarui otomatis tiap 10 detik.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -171,31 +171,31 @@ export default function PetaDriverPage() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />Langsung
           </span>
           {(['all', 'ride', 'car'] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)} className={`px-3 py-1.5 text-sm rounded-lg border ${filter === f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'}`}>
+            <button key={f} onClick={() => setFilter(f)} className={`px-4 py-1.5 text-sm rounded-full border ${filter === f ? 'bg-gradient-to-b from-[#4a98ad] to-[#2f7088] text-white border-transparent shadow-md' : 'bg-white/80 text-slate-700 border-white hover:bg-white'}`}>
               {f === 'all' ? 'Semua' : f === 'ride' ? 'Motor' : 'Mobil'}
             </button>
           ))}
-          <button onClick={() => { setLoading(true); fitted.current = false; setReloadKey(k => k + 1); }} className="p-2 border border-slate-200 rounded-lg bg-white hover:bg-slate-50" aria-label="Muat ulang"><RefreshCw className="w-4 h-4 text-slate-600" /></button>
+          <button onClick={() => { setLoading(true); fitted.current = false; setReloadKey(k => k + 1); }} className="p-2.5 rounded-full bg-white/80 shadow-[0_6px_16px_-8px_rgba(60,80,130,0.35)] hover:bg-white" aria-label="Muat ulang"><RefreshCw className="w-4 h-4 text-slate-600" /></button>
         </div>
       </div>
 
-      {error && <div className="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-lg px-4 py-3">{error}</div>}
+      {error && <div className="bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-2xl px-4 py-3">{error}</div>}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <div className="bg-white border border-slate-200 rounded-xl p-4"><p className="text-[11px] font-semibold uppercase text-slate-500">Driver online</p><p className="text-xl font-bold text-slate-900 mt-1">{data?.online_total ?? '-'}</p></div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4"><p className="text-[11px] font-semibold uppercase text-slate-500">Sedang order</p><p className="text-xl font-bold text-amber-600 mt-1">{data?.engaged_total ?? '-'}</p></div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4"><p className="text-[11px] font-semibold uppercase text-slate-500">Posisi segar</p><p className="text-xl font-bold text-emerald-700 mt-1">{fresh}</p><p className="text-xs text-slate-500 mt-1">diperbarui dalam 2 menit</p></div>
-        <div className="bg-white border border-slate-200 rounded-xl p-4"><p className="text-[11px] font-semibold uppercase text-slate-500">Online tanpa posisi</p><p className="text-xl font-bold text-slate-900 mt-1">{withoutPos}</p><p className="text-xs text-slate-500 mt-1">aplikasi ditutup atau GPS mati</p></div>
+        <div className="bg-white/80 backdrop-blur border border-white rounded-3xl p-5 shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]"><p className="text-[11px] font-semibold uppercase text-slate-500">Driver online</p><p className="text-xl font-extrabold text-slate-900 mt-1">{data?.online_total ?? '-'}</p></div>
+        <div className="bg-white/80 backdrop-blur border border-white rounded-3xl p-5 shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]"><p className="text-[11px] font-semibold uppercase text-slate-500">Sedang order</p><p className="text-xl font-extrabold text-amber-600 mt-1">{data?.engaged_total ?? '-'}</p></div>
+        <div className="bg-white/80 backdrop-blur border border-white rounded-3xl p-5 shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]"><p className="text-[11px] font-semibold uppercase text-slate-500">Posisi segar</p><p className="text-xl font-extrabold text-emerald-700 mt-1">{fresh}</p><p className="text-xs text-slate-500 mt-1">diperbarui dalam 2 menit</p></div>
+        <div className="bg-white/80 backdrop-blur border border-white rounded-3xl p-5 shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]"><p className="text-[11px] font-semibold uppercase text-slate-500">Online tanpa posisi</p><p className="text-xl font-extrabold text-slate-900 mt-1">{withoutPos}</p><p className="text-xs text-slate-500 mt-1">aplikasi ditutup atau GPS mati</p></div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 relative">
           {failed ? (
-            <div className="h-[520px] flex items-center justify-center text-sm text-slate-500 bg-white border border-slate-200 rounded-xl">Peta gagal dimuat. Daftar di samping tetap benar.</div>
+            <div className="h-[520px] flex items-center justify-center text-sm text-slate-500 bg-white border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]">Peta gagal dimuat. Daftar di samping tetap benar.</div>
           ) : (
-            <div ref={mapEl} className="h-[520px] rounded-xl overflow-hidden border border-slate-200 bg-slate-100" />
+            <div ref={mapEl} className="h-[520px] rounded-3xl overflow-hidden border-4 border-white bg-slate-100 shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]" />
           )}
-          {loading && !data && <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-xl"><Loader2 className="w-5 h-5 animate-spin text-slate-500" /></div>}
+          {loading && !data && <div className="absolute inset-0 flex items-center justify-center bg-white/60 rounded-3xl"><Loader2 className="w-5 h-5 animate-spin text-slate-500" /></div>}
           <div className="flex gap-4 text-[11px] text-slate-600 mt-2">
             <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500 mr-1" />Siap order</span>
             <span><span className="inline-block w-2.5 h-2.5 rounded-full bg-amber-500 mr-1" />Sedang order</span>
@@ -204,8 +204,8 @@ export default function PetaDriverPage() {
           </div>
         </div>
 
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200 text-sm font-semibold text-slate-700">Daftar driver ({list.length})</div>
+        <div className="bg-white/90 border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)] overflow-hidden">
+          <div className="px-5 py-3.5 border-b border-slate-100 text-sm font-semibold text-slate-700">Daftar driver ({list.length})</div>
           <ul className="divide-y divide-slate-100 max-h-[520px] overflow-y-auto">
             {list.length === 0 && <li className="p-4 text-sm text-slate-500">Belum ada driver online dengan posisi.</li>}
             {list.map(d => (
