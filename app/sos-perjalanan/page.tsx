@@ -154,7 +154,7 @@ export default function SosPerjalananPage() {
     setBusyId(null);
     const res = data as { success?: boolean; message?: string } | null;
     if (err || !res?.success) {
-      alert(`Gagal: ${err?.message ?? res?.message ?? 'tidak diketahui'}`);
+      setError(`Gagal: ${err?.message ?? res?.message ?? 'tidak diketahui'}`);
       return;
     }
     setReloadKey((k) => k + 1);
@@ -166,7 +166,7 @@ export default function SosPerjalananPage() {
     <div className="max-w-5xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">SOS Perjalanan</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">SOS Perjalanan</h2>
           <p className="text-sm text-slate-500 mt-1">
             Tombol darurat yang ditekan penumpang atau driver saat trip berjalan. Halaman ini menyegarkan diri tiap 10 detik.
           </p>
@@ -182,8 +182,8 @@ export default function SosPerjalananPage() {
               setAlarmOn(next);
               if (next) beep();
             }}
-            className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-semibold transition ${
-              alarmOn ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full border text-xs font-semibold transition ${
+              alarmOn ? 'bg-gradient-to-b from-[#4a98ad] to-[#2f7088] border-transparent text-white shadow-md' : 'bg-white/80 border-white shadow-[0_6px_16px_-8px_rgba(60,80,130,0.35)] text-slate-700 hover:bg-white'
             }`}
           >
             {alarmOn ? <Volume2 className="w-3.5 h-3.5" /> : <VolumeX className="w-3.5 h-3.5" />}
@@ -193,7 +193,7 @@ export default function SosPerjalananPage() {
       </div>
 
       {error && (
-        <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
           <div>
             {error}
@@ -204,23 +204,24 @@ export default function SosPerjalananPage() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Terbuka sekarang', value: summary?.open, tone: (summary?.open ?? 0) > 0 ? 'text-rose-600' : 'text-slate-900' },
+          { label: 'Terbuka sekarang', value: summary?.open, tint: (summary?.open ?? 0) > 0 ? 'from-[#fde4e4] to-[#f8c9c9]' : 'from-[#e3ecfb] to-[#cddcf5]', tone: (summary?.open ?? 0) > 0 ? 'text-rose-700' : 'text-[#27468c]' },
           {
             label: 'Paling lama menunggu',
             value: summary?.oldest_open_minutes != null ? `${summary.oldest_open_minutes} mnt` : '-',
-            tone: 'text-slate-900',
+            tint: 'from-[#fdeedb] to-[#f7d9b4]',
+            tone: 'text-[#8a5314]',
           },
-          { label: 'Ditangani 7 hari', value: summary?.handled_7d, tone: 'text-emerald-600' },
-          { label: 'Total 30 hari', value: summary?.total_30d, tone: 'text-slate-900' },
+          { label: 'Ditangani 7 hari', value: summary?.handled_7d, tint: 'from-[#dcf3ea] to-[#bfe5d6]', tone: 'text-[#1d6a50]' },
+          { label: 'Total 30 hari', value: summary?.total_30d, tint: 'from-[#eceff4] to-[#d8dee8]', tone: 'text-[#475569]' },
         ].map((c) => (
-          <div key={c.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-xs font-semibold text-slate-500">{c.label}</div>
-            <div className={`mt-1.5 text-2xl font-extrabold tabular-nums ${c.tone}`}>{c.value ?? '-'}</div>
+          <div key={c.label} className={`rounded-3xl bg-gradient-to-br ${c.tint} p-4 shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)]`}>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{c.label}</div>
+            <div className={`mt-1.5 text-3xl font-extrabold tabular-nums ${c.tone}`}>{c.value ?? '-'}</div>
           </div>
         ))}
       </div>
 
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="inline-flex gap-1 p-1 rounded-full bg-white/70 border border-white shadow-[0_6px_16px_-10px_rgba(60,80,130,0.35)]">
         {([
           ['open', `Terbuka (${openCount})`],
           ['handled', 'Sudah ditangani'],
@@ -228,8 +229,8 @@ export default function SosPerjalananPage() {
           <button
             key={k}
             onClick={() => setTab(k)}
-            className={`px-4 py-2.5 text-[13px] font-semibold border-b-2 -mb-px transition ${
-              tab === k ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-800'
+            className={`px-5 py-2 text-[13px] font-semibold rounded-full transition ${
+              tab === k ? 'bg-gradient-to-b from-[#4a98ad] to-[#2f7088] text-white shadow' : 'text-slate-500 hover:text-slate-800'
             }`}
           >
             {label}
@@ -242,7 +243,7 @@ export default function SosPerjalananPage() {
           <Loader2 className="w-6 h-6 animate-spin" />
         </div>
       ) : shown.length === 0 ? (
-        <div className="py-20 text-center rounded-2xl border border-slate-200 bg-white">
+        <div className="py-20 text-center rounded-3xl bg-white/80 backdrop-blur border border-white shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]">
           <div className="w-12 h-12 mx-auto rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
             <CheckCircle2 className="w-6 h-6" />
           </div>
@@ -259,7 +260,7 @@ export default function SosPerjalananPage() {
             return (
               <article
                 key={r.id}
-                className={`rounded-2xl border bg-white shadow-sm overflow-hidden ${isOpen ? 'border-rose-300 ring-2 ring-rose-500/10' : 'border-slate-200'}`}
+                className={`rounded-3xl border bg-white/80 backdrop-blur overflow-hidden ${isOpen ? 'border-rose-300 ring-2 ring-rose-500/10 shadow-[0_12px_30px_-14px_rgba(225,29,72,0.35)]' : 'border-white shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]'}`}
               >
                 <div className={`px-5 py-3 flex items-center justify-between gap-3 ${isOpen ? 'bg-rose-50 border-b border-rose-100' : 'bg-slate-50 border-b border-slate-100'}`}>
                   <div className="flex items-center gap-2.5 min-w-0">
@@ -308,7 +309,7 @@ export default function SosPerjalananPage() {
                       { title: r.role === 'driver' ? 'Driver (pengirim SOS)' : 'Penumpang (pengirim SOS)', name: r.sender_name, phone: r.sender_phone },
                       { title: r.role === 'driver' ? 'Penumpang' : 'Driver', name: r.other_name, phone: r.other_phone },
                     ].map((p) => (
-                      <div key={p.title} className="rounded-xl border border-slate-200 p-3.5 flex items-center justify-between gap-3">
+                      <div key={p.title} className="rounded-2xl border border-slate-200 bg-white p-3.5 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-[11px] text-slate-400">{p.title}</div>
                           <div className="text-sm font-semibold text-slate-900 truncate">{p.name ?? '-'}</div>
@@ -316,7 +317,7 @@ export default function SosPerjalananPage() {
                         {p.phone && (
                           <a
                             href={`tel:${p.phone.startsWith('0') || p.phone.startsWith('+') ? p.phone : '0' + p.phone}`}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shrink-0"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-b from-[#4a98ad] to-[#2f7088] hover:opacity-90 text-white text-xs font-semibold shrink-0"
                           >
                             <Phone className="w-3.5 h-3.5" /> {p.phone}
                           </a>
@@ -335,7 +336,7 @@ export default function SosPerjalananPage() {
                     <button
                       disabled={busyId === r.id}
                       onClick={() => setStatus(r, 'handled')}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-60"
+                      className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-gradient-to-b from-[#34b27f] to-[#1f8a60] hover:opacity-90 text-white shadow-md text-xs font-semibold disabled:opacity-60"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" /> Tandai sudah ditangani
                     </button>
@@ -343,7 +344,7 @@ export default function SosPerjalananPage() {
                     <button
                       disabled={busyId === r.id}
                       onClick={() => setStatus(r, 'open')}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 text-xs font-semibold disabled:opacity-60"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs font-semibold disabled:opacity-60"
                     >
                       <RotateCcw className="w-3.5 h-3.5" /> Buka kembali
                     </button>
