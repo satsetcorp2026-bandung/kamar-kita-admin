@@ -51,6 +51,8 @@ export default function PenggunaPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pTitle, setPTitle] = useState('');
+  const [pBody, setPBody] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -89,7 +91,7 @@ export default function PenggunaPage() {
     return () => { alive = false; };
   }, [sel, reloadKey]);
 
-  const open = (id: string) => { setSel(id); setDetail(null); setDetailLoading(true); setReason(''); setOkMsg(''); };
+  const open = (id: string) => { setSel(id); setDetail(null); setDetailLoading(true); setReason(''); setPTitle(''); setPBody(''); setOkMsg(''); };
   const reload = () => { setLoading(true); setReloadKey((k) => k + 1); };
 
   const doBlock = async () => {
@@ -112,6 +114,17 @@ export default function PenggunaPage() {
     setBusy(false);
     if (e) { setError(errText(e)); return; }
     setError(''); setOkMsg('Blokir dibuka.'); reload();
+  };
+
+  const doPush = async () => {
+    if (!detail) return;
+    setBusy(true);
+    const { data, error: e } = await supabase.rpc('admin_user_push', { p_user: detail.id, p_title: pTitle, p_body: pBody });
+    setBusy(false);
+    const res = data as { success?: boolean; message?: string } | null;
+    if (e) { setError(errText(e)); return; }
+    if (!res?.success) { setError(res?.message ?? 'Gagal.'); return; }
+    setError(''); setOkMsg('Notifikasi terkirim.'); setPTitle(''); setPBody('');
   };
 
   const canUnblock = role === 'owner' || role === 'admin';
@@ -219,6 +232,14 @@ export default function PenggunaPage() {
                   <p className="text-[11px] text-slate-400">Pesanan yang sedang berjalan tidak ikut dibatalkan. Tangani manual bila perlu.</p>
                 </div>
               )}
+
+              <div className="space-y-2">
+                <div className="text-xs font-bold text-slate-700">Kirim notifikasi ke pengguna ini</div>
+                <input value={pTitle} onChange={(e) => setPTitle(e.target.value)} maxLength={60} placeholder="Judul" className={input} />
+                <textarea value={pBody} onChange={(e) => setPBody(e.target.value)} maxLength={240} rows={2} placeholder="Isi pesan" className="w-full text-sm rounded-2xl border border-slate-200 bg-white px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500" />
+                <button onClick={doPush} disabled={busy || pTitle.trim().length < 3 || pBody.trim().length < 3} className={`px-5 py-2 rounded-full ${GRAD} text-white text-xs font-semibold shadow-md hover:opacity-90 disabled:opacity-50`}>Kirim notifikasi</button>
+                <p className="text-[11px] text-slate-400">Untuk siaran ke banyak orang, pakai halaman Banner Promo.</p>
+              </div>
 
               <div>
                 <div className="text-xs font-bold text-slate-700 mb-1.5">Laporan terhadap pengguna ini ({detail.reports_against.length})</div>

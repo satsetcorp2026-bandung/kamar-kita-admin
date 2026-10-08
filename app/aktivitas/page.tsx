@@ -90,6 +90,7 @@ function describe(r: Row): { label: string; tone: string; who: string; info: str
   if (a === 'tolongin_job') return { label: 'Pekerjaan Tolongin diselesaikan admin', tone: amber, who: str(r.target_id).slice(0, 8), info: str(d.p_outcome) };
   if (a === 'user_block') return { label: 'Pengguna diblokir', tone: red, who: name !== '-' ? name : str(r.target_id).slice(0, 8), info: `Alasan: ${str(d.reason)}` };
   if (a === 'user_unblock') return { label: 'Blokir pengguna dibuka', tone: green, who: name !== '-' ? name : str(r.target_id).slice(0, 8), info: '' };
+  if (a === 'user_push') return { label: 'Notifikasi dikirim ke pengguna', tone: blue, who: name !== '-' ? name : str(r.target_id).slice(0, 8), info: `${str(d.title)}: ${str(d.body)}` };
   if (a === 'staff_add') return { label: 'Staf ditambahkan', tone: blue, who: str(d.email), info: `Peran ${str(d.role)}` };
   if (a === 'staff_role') return { label: 'Peran staf diubah', tone: blue, who: name, info: `${str(d.old)} menjadi ${str(d.new)}` };
   if (a === 'staff_remove') return { label: 'Akses staf dicabut', tone: red, who: name, info: '' };
