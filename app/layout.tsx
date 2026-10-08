@@ -23,6 +23,7 @@ import {
   MapPin,
   SlidersHorizontal,
   Gauge,
+  UserCog,
   History,
   Search,
   LogOut,
@@ -32,7 +33,8 @@ import {
   Lock,
 } from 'lucide-react';
 
-type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeKey?: 'reports' | 'drivers' | 'sos' };
+type Role = 'owner' | 'admin' | 'cs';
+type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeKey?: 'reports' | 'drivers' | 'sos'; roles?: Role[] };
 type NavGroup = { label: string; items: NavItem[] };
 
 const navGroups: NavGroup[] = [
@@ -41,10 +43,11 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Ringkasan', href: '/', icon: LayoutDashboard },
       { name: 'Laporan Pengguna', href: '/laporan', icon: Flag, badgeKey: 'reports' },
-      { name: 'Laporan Investor', href: '/analitik', icon: TrendingUp },
-      { name: 'Keuangan', href: '/keuangan', icon: Wallet },
-      { name: 'Biaya Peta dan AI', href: '/biaya', icon: Gauge },
-      { name: 'Catatan Aktivitas', href: '/aktivitas', icon: History },
+      { name: 'Laporan Investor', href: '/analitik', icon: TrendingUp, roles: ['owner'] },
+      { name: 'Keuangan', href: '/keuangan', icon: Wallet, roles: ['owner'] },
+      { name: 'Biaya Peta dan AI', href: '/biaya', icon: Gauge, roles: ['owner'] },
+      { name: 'Catatan Aktivitas', href: '/aktivitas', icon: History, roles: ['owner'] },
+      { name: 'Staf dan Peran', href: '/staf', icon: UserCog, roles: ['owner'] },
     ],
   },
   {
@@ -53,30 +56,30 @@ const navGroups: NavGroup[] = [
       { name: 'Driver Pim', href: '/drivers', icon: Bike, badgeKey: 'drivers' },
       { name: 'Pesanan dan Trip', href: '/orders', icon: Route },
       { name: 'Peta Driver Langsung', href: '/peta-driver', icon: MapPin },
-      { name: 'Pengaturan Tarif', href: '/pengaturan', icon: SlidersHorizontal },
+      { name: 'Pengaturan Tarif', href: '/pengaturan', icon: SlidersHorizontal, roles: ['owner'] },
     ],
   },
   {
     label: 'Layanan',
     items: [
-      { name: 'Hunian (Kost & Sewa)', href: '/properties', icon: Building2 },
-      { name: 'Sobat Tolongin', href: '/tolongin', icon: HandHeart },
-      { name: 'Jual Beli Kost', href: '/kos-sales', icon: Building2 },
-      { name: 'Preloved', href: '/preloved', icon: ShoppingBag },
-      { name: 'Cleaning Service', href: '/cleaning', icon: Sparkles },
-      { name: 'Jasa Angkut', href: '/angkut', icon: Truck },
+      { name: 'Hunian (Kost & Sewa)', href: '/properties', icon: Building2, roles: ['owner', 'admin'] },
+      { name: 'Sobat Tolongin', href: '/tolongin', icon: HandHeart, roles: ['owner', 'admin'] },
+      { name: 'Jual Beli Kost', href: '/kos-sales', icon: Building2, roles: ['owner', 'admin'] },
+      { name: 'Preloved', href: '/preloved', icon: ShoppingBag, roles: ['owner', 'admin'] },
+      { name: 'Cleaning Service', href: '/cleaning', icon: Sparkles, roles: ['owner', 'admin'] },
+      { name: 'Jasa Angkut', href: '/angkut', icon: Truck, roles: ['owner', 'admin'] },
     ],
   },
   {
     label: 'Keselamatan',
     items: [
       { name: 'SOS Perjalanan', href: '/sos-perjalanan', icon: Siren, badgeKey: 'sos' },
-      { name: 'Relawan Siaga SOS', href: '/sos', icon: ShieldAlert },
+      { name: 'Relawan Siaga SOS', href: '/sos', icon: ShieldAlert, roles: ['owner', 'admin'] },
     ],
   },
   {
     label: 'Pemasaran',
-    items: [{ name: 'Banner Promo', href: '/banners', icon: ImageIcon }],
+    items: [{ name: 'Banner Promo', href: '/banners', icon: ImageIcon, roles: ['owner', 'admin'] }],
   },
 ];
 
@@ -98,6 +101,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [email, setEmail] = useState('');
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [role, setRole] = useState<Role | null>(null);
   const [openReports, setOpenReports] = useState(0);
   const [pendingDrivers, setPendingDrivers] = useState(0);
   const [openSos, setOpenSos] = useState(0);
@@ -162,6 +166,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     async function loadMeta() {
       const adminRes = await supabase.rpc('is_admin');
       if (isMounted && !adminRes.error) setIsAdmin(adminRes.data === true);
+      if (adminRes.data === true) {
+        const roleRes = await supabase.rpc('my_admin_role');
+        // Bila SQL Part AZ belum dijalankan, fungsi belum ada: anggap Pemilik (server tetap yang memutuskan)
+        if (isMounted) setRole(roleRes.error ? 'owner' : ((roleRes.data as Role | null) ?? 'admin'));
+      }
 
       const summary = await supabase.rpc('admin_report_summary');
       if (isMounted && !summary.error && summary.data) {
@@ -207,7 +216,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const searchResults = allItems.filter((i) => i.name.toLowerCase().includes(searchText.trim().toLowerCase())).slice(0, 8);
+  const canSee = (i: NavItem) => !i.roles || !role || i.roles.includes(role);
+  const visibleGroups = navGroups.map((g) => ({ ...g, items: g.items.filter(canSee) })).filter((g) => g.items.length > 0);
+  const currentItem = allItems.find((i) => i.href === pathname || (i.href !== '/' && pathname.startsWith(i.href + '/')));
+  const blocked = !!currentItem && !!role && !canSee(currentItem);
+  const roleLabel = role === 'owner' ? 'Pemilik' : role === 'cs' ? 'CS' : 'Admin';
+  const searchResults = allItems.filter(canSee).filter((i) => i.name.toLowerCase().includes(searchText.trim().toLowerCase())).slice(0, 8);
   const goTo = (href: string) => {
     setSearchOpen(false);
     setDrawerOpen(false);
@@ -281,7 +295,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-4">
-          {navGroups.map((group) => (
+          {visibleGroups.map((group) => (
             <div key={group.label}>
               <div className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#7f95b5]">
                 {group.label}
@@ -324,7 +338,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
             <div className="min-w-0 flex-1">
               <div className="text-xs font-semibold text-white truncate">{email || 'Admin'}</div>
-              <div className="text-[11px] text-[#a9bdd6]">Administrator</div>
+              <div className="text-[11px] text-[#a9bdd6]">{roleLabel}</div>
             </div>
             <button
               onClick={handleLogout}
@@ -389,7 +403,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </header>
 
-          <main className="flex-1 px-4 pb-8 pt-2 sm:px-6 lg:px-8 [&_.bg-white]:!bg-[#f6f8fc]">{children}</main>
+          <main className="flex-1 px-4 pb-8 pt-2 sm:px-6 lg:px-8 [&_.bg-white]:!bg-[#f6f8fc]">
+            {!role ? (
+              <div className="flex items-center justify-center py-24 text-slate-400"><Loader2 className="w-6 h-6 animate-spin" /></div>
+            ) : blocked ? (
+              <div className="max-w-md mx-auto mt-20 rounded-3xl bg-white/80 border border-white p-8 text-center shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]">
+                <div className="w-12 h-12 mx-auto rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center"><Lock className="w-6 h-6" /></div>
+                <h2 className="mt-4 text-lg font-extrabold text-slate-800">Halaman ini tidak tersedia untuk perananmu</h2>
+                <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">Kamu masuk sebagai {roleLabel}. Hubungi Pemilik kalau kamu perlu akses ke halaman ini.</p>
+              </div>
+            ) : (
+              children
+            )}
+          </main>
 
           {searchOpen && (
             <div className="print:hidden fixed inset-0 z-[60] flex items-start justify-center pt-24 px-4">

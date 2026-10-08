@@ -95,6 +95,7 @@ export default function DashboardOverviewPage() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [hour] = useState(() => new Date().getHours());
   const [reloadKey, setReloadKey] = useState(0);
+  const [role, setRole] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -102,7 +103,7 @@ export default function DashboardOverviewPage() {
       const count = async (q: PromiseLike<{ count: number | null }>) => {
         try { const r = await q; return r.count ?? 0; } catch { return 0; }
       };
-      const [properties, users, preloved, sosActive, sosTotal, partnerRes, reportRes, summaryRes, driverRes, ovRes, tripRes, sosRes] = await Promise.all([
+      const [properties, users, preloved, sosActive, sosTotal, partnerRes, reportRes, summaryRes, driverRes, ovRes, tripRes, sosRes, roleRes] = await Promise.all([
         count(supabase.from('properties').select('*', { count: 'exact', head: true })),
         count(supabase.from('profiles').select('*', { count: 'exact', head: true })),
         count(supabase.from('preloved_items').select('*', { count: 'exact', head: true }).eq('status', 'active')),
@@ -115,9 +116,12 @@ export default function DashboardOverviewPage() {
         supabase.rpc('admin_overview_pim'),
         supabase.rpc('admin_orders_list', { p_group: null, p_search: null, p_days: 7, p_limit: 5 }),
         supabase.rpc('admin_sos_summary'),
+        supabase.rpc('my_admin_role'),
       ]);
       if (!alive) return;
       setStats({ properties, users, preloved, sosActive, sosTotal });
+      // Bila SQL Part AZ belum dijalankan, anggap Pemilik
+      setRole(roleRes.error ? 'owner' : ((roleRes.data as string | null) ?? 'admin'));
       if (!partnerRes.error && partnerRes.data) setPartners(partnerRes.data as PartnerLite[]);
       if (!reportRes.error && reportRes.data) setReports((reportRes.data as ReportLite[]).slice(0, 4));
       if (!summaryRes.error && summaryRes.data) setSummary(summaryRes.data as ReportSummary);
@@ -219,12 +223,21 @@ export default function DashboardOverviewPage() {
           <div className="text-3xl font-extrabold text-slate-800 tabular-nums">{loading ? '-' : fmtNum(ov?.today_completed ?? 0)}</div>
           <div className="text-xs text-[#2c3e55]">{ov && ov.today_orders > 0 ? `${Math.round((ov.today_completed / ov.today_orders) * 100)}% dari order masuk` : 'Belum ada order'}</div>
         </div>
+        {role === 'owner' || role === null ? (
         <Link href="/keuangan" className={`${tile} block bg-gradient-to-br from-[#eaf3f9] to-[#cfe2ee]`}>
           <div className={iconBox}><Wallet className="w-5 h-5" /></div>
           <div className="mt-3 text-[13px] font-bold text-[#2c3e55]">Pendapatan platform hari ini</div>
           <div className="text-2xl font-extrabold text-slate-800 tabular-nums mt-1">{loading ? '-' : rp(ov?.today_income ?? 0)}</div>
           <div className="text-xs text-[#2c3e55]">Komisi dan biaya platform</div>
         </Link>
+        ) : (
+        <Link href="/laporan" className={`${tile} block bg-gradient-to-br from-[#eaf3f9] to-[#cfe2ee]`}>
+          <div className={iconBox}><Wallet className="w-5 h-5" /></div>
+          <div className="mt-3 text-[13px] font-bold text-[#2c3e55]">Laporan pengguna terbuka</div>
+          <div className="text-3xl font-extrabold text-slate-800 tabular-nums mt-1">{loading ? '-' : fmtNum(summary.open)}</div>
+          <div className="text-xs text-[#2c3e55]">Perlu ditinjau</div>
+        </Link>
+        )}
         <Link href="/peta-driver" className={`${tile} block bg-gradient-to-br from-[#a9a4d4] to-[#8782bb]`}>
           <div className={iconBox}><MapPin className="w-5 h-5" /></div>
           <div className="mt-3 text-[13px] font-bold text-[#2a2757]">Driver online</div>
