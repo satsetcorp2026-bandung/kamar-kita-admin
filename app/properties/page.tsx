@@ -75,6 +75,7 @@ export default function PropertiesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('Semua Kategori');
   const [onlyAvailable, setOnlyAvailable] = useState(false);
+  const [tab, setTab] = useState<'all' | 'active' | 'full' | 'inactive'>('all');
 
   // Modal Wizard Tambah Baru
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -347,7 +348,15 @@ export default function PropertiesPage() {
     }
   }
 
+  const countActive = properties.filter((p) => p.is_active).length;
+  const countFull = properties.filter((p) => Number(p.available_rooms || 0) <= 0).length;
+  const countInactive = properties.length - countActive;
+  const unitsLeft = properties.filter((p) => p.is_active).reduce((a, p) => a + Number(p.available_rooms || 0), 0);
+
   const filteredProperties = properties.filter((p) => {
+    if (tab === 'active' && !p.is_active) return false;
+    if (tab === 'inactive' && p.is_active) return false;
+    if (tab === 'full' && Number(p.available_rooms || 0) > 0) return false;
     if (selectedCategory !== 'Semua Kategori' && p.category !== selectedCategory) {
       return false;
     }
@@ -366,166 +375,204 @@ export default function PropertiesPage() {
     return true;
   });
 
+  const tabs: { key: 'all' | 'active' | 'full' | 'inactive'; label: string; count: number }[] = [
+    { key: 'all', label: 'Semua', count: properties.length },
+    { key: 'active', label: 'Aktif', count: countActive },
+    { key: 'full', label: 'Kamar penuh', count: countFull },
+    { key: 'inactive', label: 'Nonaktif', count: countInactive },
+  ];
+
   return (
-    <div className="space-y-5">
-      {/* Header Utama */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="max-w-7xl mx-auto space-y-5">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900">Manajemen Hunian</h2>
-          <p className="text-xs text-slate-500 mt-0.5">Kelola listing kost, kontrakan, apartemen, dan kesiapan jadwal survey</p>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Hunian</h2>
+          <p className="text-sm text-slate-500 mt-1">Kelola listing kost, kontrakan, apartemen, dan jadwal survey.</p>
         </div>
         <button
           onClick={() => { resetForm(); setIsModalOpen(true); }}
-          className="flex items-center gap-1.5 bg-orange-600 hover:bg-orange-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all self-start sm:self-auto"
+          className="inline-flex items-center gap-2 bg-gradient-to-br from-[#4a98ad] to-[#2f7088] text-white px-5 py-2.5 rounded-full text-[13px] font-bold shadow-[4px_6px_12px_rgba(36,76,96,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-105 transition self-start sm:self-auto"
         >
           <Plus className="w-4 h-4" />
-          Tambah Hunian (Wizard)
+          Tambah Hunian
         </button>
       </div>
 
-      {/* Kontrol Pencarian & Filter */}
-      <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Cari nama hunian atau area..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-orange-500 focus:bg-white"
-          />
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="bg-transparent text-xs font-medium text-slate-700 focus:outline-none"
-            >
-              {CATEGORY_OPTIONS.map((cat) => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+      {/* Kartu ringkasan */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: 'Total listing', value: properties.length, sub: 'Semua hunian terdaftar', cls: 'from-[#d0dae6] to-[#b3c3d4]', num: 'text-slate-800' },
+          { label: 'Aktif', value: countActive, sub: 'Tampil di aplikasi', cls: 'from-[#8fd0c8] to-[#62aea8]', num: 'text-[#0f2f2e]' },
+          { label: 'Kamar penuh', value: countFull, sub: 'Perlu cek ketersediaan', cls: 'from-[#eaf3f9] to-[#cfe2ee]', num: 'text-rose-700' },
+          { label: 'Unit tersisa', value: unitsLeft, sub: 'Bisa dipesan sekarang', cls: 'from-[#a9a4d4] to-[#8782bb]', num: 'text-[#1c1a40]' },
+        ].map((k) => (
+          <div key={k.label} className={`rounded-[20px] p-4 bg-gradient-to-br ${k.cls} shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)]`}>
+            <div className="text-[13px] font-bold text-slate-700">{k.label}</div>
+            <div className={`text-3xl font-extrabold tabular-nums mt-1 ${k.num}`}>{loading ? '-' : k.value}</div>
+            <div className="text-xs text-slate-600">{k.sub}</div>
           </div>
-
-          <button
-            onClick={() => setOnlyAvailable(!onlyAvailable)}
-            className={`text-xs font-semibold px-3 py-2 rounded-lg border transition-all ${
-              onlyAvailable 
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-300 font-bold' 
-                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            ✓ Hanya Ada Kamar Kosong
-          </button>
-
-          {(searchQuery || selectedCategory !== 'Semua Kategori' || onlyAvailable) && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedCategory('Semua Kategori');
-                setOnlyAvailable(false);
-              }}
-              className="text-xs text-rose-600 hover:underline px-1"
-            >
-              Reset
-            </button>
-          )}
-        </div>
+        ))}
       </div>
 
-      {/* Tabel Data Hunian */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+      {/* Tab, pencarian, tabel */}
+      <section className="rounded-[22px] border border-white/70 bg-[#f6f8fc] shadow-[8px_10px_22px_rgba(48,66,92,0.16),-6px_-6px_16px_rgba(255,255,255,0.6)] overflow-hidden">
+        <div className="flex gap-1 px-4 border-b border-slate-200 overflow-x-auto">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-3 py-3.5 text-[13px] font-bold whitespace-nowrap border-b-2 transition ${
+                tab === t.key ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {t.label}
+              <span className={`ml-1.5 rounded-full px-2 py-0.5 text-[11px] ${tab === t.key ? 'bg-blue-100 text-blue-700' : 'bg-slate-200/70 text-slate-600'}`}>{t.count}</span>
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4 flex flex-col md:flex-row items-center justify-between gap-3">
+          <div className="relative w-full md:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              placeholder="Cari nama hunian atau area"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-xl text-[13px] focus:outline-blue-500"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
+            <div className="flex items-center gap-1.5 bg-white border border-slate-200 rounded-xl px-3 py-2">
+              <Filter className="w-3.5 h-3.5 text-slate-400" />
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="bg-transparent text-[13px] font-medium text-slate-700 focus:outline-none"
+              >
+                {CATEGORY_OPTIONS.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+
+            <button
+              onClick={() => setOnlyAvailable(!onlyAvailable)}
+              className={`text-[13px] font-semibold px-3.5 py-2 rounded-xl border transition-all ${
+                onlyAvailable
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300 font-bold'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              Hanya yang ada kamar kosong
+            </button>
+
+            {(searchQuery || selectedCategory !== 'Semua Kategori' || onlyAvailable) && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setSelectedCategory('Semua Kategori');
+                  setOnlyAvailable(false);
+                }}
+                className="text-xs text-rose-600 hover:underline px-1"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
         {loading ? (
-          <div className="py-12 text-center text-slate-500 flex items-center justify-center gap-2 text-xs">
-            <Loader2 className="w-4 h-4 animate-spin text-orange-500" /> Memuat daftar hunian...
+          <div className="py-14 text-center text-slate-500 flex items-center justify-center gap-2 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> Memuat daftar hunian
           </div>
         ) : filteredProperties.length === 0 ? (
-          <div className="py-12 text-center text-slate-400 text-xs">
-            Tidak ada hunian yang cocok dengan pencarian atau filter.
+          <div className="py-14 text-center text-slate-500 text-sm">
+            {properties.length === 0 ? 'Belum ada hunian. Klik Tambah Hunian untuk mulai.' : 'Tidak ada hunian yang cocok dengan pencarian atau filter.'}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
-              <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-500 font-semibold uppercase tracking-wider text-[11px]">
+              <thead className="bg-slate-100/70 border-y border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
                 <tr>
-                  <th className="py-3 px-4">Hunian</th>
-                  <th className="py-3 px-4">Kategori / Tipe</th>
-                  <th className="py-3 px-4">Tarif Sewa</th>
-                  <th className="py-3 px-4 text-center">Sisa Unit</th>
+                  <th className="py-3 px-5">Hunian</th>
+                  <th className="py-3 px-4">Kategori</th>
+                  <th className="py-3 px-4">Tarif sewa</th>
+                  <th className="py-3 px-4 text-center">Sisa unit</th>
                   <th className="py-3 px-4 text-center">Status</th>
-                  <th className="py-3 px-4 text-right">Aksi</th>
+                  <th className="py-3 px-5 text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-200/70">
                 {filteredProperties.map((p) => {
                   const cleanPhone = (p.whatsapp || '').replace(/[^0-9]/g, '');
                   const waNumber = cleanPhone.startsWith('0') ? `62${cleanPhone.slice(1)}` : cleanPhone;
                   const isAvailable = Number(p.available_rooms || 0) > 0;
 
                   return (
-                    <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
-                      <td className="py-3 px-4">
+                    <tr key={p.id} className="hover:bg-blue-50/40 transition-colors">
+                      <td className="py-3.5 px-5">
                         <div className="flex items-center gap-3">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={p.image_url || '/placeholder.png'}
                             alt={p.name}
-                            className="w-10 h-10 rounded-lg object-cover bg-slate-100 border border-slate-200 shrink-0"
+                            className="w-12 h-12 rounded-xl object-cover bg-slate-100 border border-slate-200 shrink-0"
                           />
                           <div>
-                            <div className="font-semibold text-slate-900 text-sm flex items-center gap-1.5 flex-nowrap">
+                            <div className="font-bold text-slate-900 text-sm flex items-center gap-1.5 flex-nowrap">
                               <span className="whitespace-nowrap">{p.name}</span>
                               {p.is_popular && (
-                                <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.2 rounded shrink-0">
+                                <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 rounded shrink-0">
                                   POPULER
                                 </span>
                               )}
                             </div>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
+                            <div className="text-[12px] text-slate-500 flex items-center gap-1 mt-0.5">
                               <MapPin className="w-3 h-3 text-slate-400" /> {p.location}
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      <td className="py-3 px-4 whitespace-nowrap">
-                        <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200/50">
-                          {p.category} ({p.tenant_type})
+                      <td className="py-3.5 px-4 whitespace-nowrap">
+                        <span className="inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-200/70 text-slate-700">
+                          {p.category}, {p.tenant_type}
                         </span>
                       </td>
 
-                      <td className="py-3 px-4 whitespace-nowrap">
+                      <td className="py-3.5 px-4 whitespace-nowrap">
                         {p.price_monthly ? (
-                          <div className="font-semibold text-slate-900">
-                            Rp {Number(p.price_monthly).toLocaleString('id-ID')}/bln
+                          <div className="font-bold text-slate-900 text-[13px]">
+                            Rp {Number(p.price_monthly).toLocaleString('id-ID')} / bln
                           </div>
                         ) : null}
                         {p.price_yearly ? (
                           <div className="text-[11px] text-slate-500">
-                            Rp {Number(p.price_yearly).toLocaleString('id-ID')}/thn
+                            Rp {Number(p.price_yearly).toLocaleString('id-ID')} / thn
                           </div>
                         ) : null}
                       </td>
 
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold ${
                           isAvailable
-                            ? 'bg-slate-100 text-slate-800'
+                            ? 'bg-slate-200/70 text-slate-800'
                             : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}>
-                          {isAvailable ? `${p.available_rooms} Unit` : 'Kamar Penuh'}
+                          {isAvailable ? `${p.available_rooms} unit` : 'Penuh'}
                         </span>
                       </td>
 
-                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
                         <button
                           onClick={() => toggleStatus(p.id, p.is_active)}
-                          className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
-                            p.is_active 
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                          title="Klik untuk mengubah status"
+                          className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full font-bold ${
+                            p.is_active
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                               : 'bg-rose-50 text-rose-700 border border-rose-200'
                           }`}
                         >
@@ -534,43 +581,36 @@ export default function PropertiesPage() {
                         </button>
                       </td>
 
-                      <td className="py-3 px-4 text-right whitespace-nowrap">
+                      <td className="py-3.5 px-5 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
-                          {/* Chat WhatsApp Pengelola */}
                           {waNumber && (
                             <a
                               href={`https://wa.me/${waNumber}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="p-1.5 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200/60"
-                              title="Hubungi Pengelola Kos"
+                              className="p-2 text-emerald-600 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200/60"
+                              title="Hubungi pengelola"
                             >
                               <MessageCircle className="w-3.5 h-3.5" />
                             </a>
                           )}
-
-                          {/* Edit Hunian */}
                           <button
                             onClick={() => handleStartEdit(p)}
-                            className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200/60"
-                            title="Edit Data Hunian"
+                            className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200/60"
+                            title="Ubah data hunian"
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </button>
-
-                          {/* Tinjau Kesiapan Survey */}
                           <button
                             onClick={() => setSelectedProperty(p)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 border border-orange-200/60 transition-colors"
+                            className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg bg-white text-slate-700 hover:bg-slate-50 border border-slate-200 transition-colors"
                           >
                             <Eye className="w-3.5 h-3.5" /> Tinjau
                           </button>
-
-                          {/* Hapus */}
                           <button
                             onClick={() => handleDelete(p.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                            title="Hapus Listing"
+                            className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Hapus listing"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -583,7 +623,11 @@ export default function PropertiesPage() {
             </table>
           </div>
         )}
-      </div>
+
+        <div className="px-5 py-3 border-t border-slate-200 text-xs text-slate-500 bg-slate-100/50">
+          Menampilkan {filteredProperties.length} dari {properties.length} hunian
+        </div>
+      </section>
 
       {/* Modal Tinjau Kesiapan Survey Bareng */}
       {selectedProperty && (
@@ -622,14 +666,14 @@ export default function PropertiesPage() {
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-slate-800 flex items-center gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-orange-600" /> Titik Lokasi Survey
+                    <MapPin className="w-3.5 h-3.5 text-blue-600" /> Titik Lokasi Survey
                   </span>
                   {selectedProperty.maps_url && (
                     <a
                       href={selectedProperty.maps_url}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-orange-600 hover:underline flex items-center gap-1 font-semibold text-[11px]"
+                      className="text-blue-600 hover:underline flex items-center gap-1 font-semibold text-[11px]"
                     >
                       Buka Google Maps <ExternalLink className="w-3 h-3" />
                     </a>
@@ -662,7 +706,7 @@ export default function PropertiesPage() {
                 <span className="font-bold text-slate-700 block mb-1.5 text-[11px]">Fasilitas Unit:</span>
                 <div className="flex flex-wrap gap-1.5">
                   {(selectedProperty.facilities || []).map((f, i) => (
-                    <span key={i} className="px-2 py-0.5 bg-orange-50 text-orange-700 rounded border border-orange-200 font-medium text-[10px]">
+                    <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded border border-blue-200 font-medium text-[10px]">
                       {f}
                     </span>
                   ))}
@@ -712,7 +756,7 @@ export default function PropertiesPage() {
                   required
                   value={editFormData.name || ''}
                   onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                  className="w-full p-2 border rounded-lg focus:outline-orange-500"
+                  className="w-full p-2 border rounded-lg focus:outline-blue-500"
                 />
               </div>
 
@@ -723,7 +767,7 @@ export default function PropertiesPage() {
                     type="number"
                     value={editFormData.price_monthly || ''}
                     onChange={(e) => setEditFormData({ ...editFormData, price_monthly: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full p-2 border rounded-lg focus:outline-orange-500 font-semibold"
+                    className="w-full p-2 border rounded-lg focus:outline-blue-500 font-semibold"
                   />
                 </div>
                 <div>
@@ -732,7 +776,7 @@ export default function PropertiesPage() {
                     type="number"
                     value={editFormData.price_yearly || ''}
                     onChange={(e) => setEditFormData({ ...editFormData, price_yearly: e.target.value ? Number(e.target.value) : null })}
-                    className="w-full p-2 border rounded-lg focus:outline-orange-500 font-semibold"
+                    className="w-full p-2 border rounded-lg focus:outline-blue-500 font-semibold"
                   />
                 </div>
               </div>
@@ -745,7 +789,7 @@ export default function PropertiesPage() {
                     min="0"
                     value={editFormData.available_rooms ?? 0}
                     onChange={(e) => setEditFormData({ ...editFormData, available_rooms: parseInt(e.target.value, 10) || 0 })}
-                    className="w-full p-2 border rounded-lg focus:outline-orange-500"
+                    className="w-full p-2 border rounded-lg focus:outline-blue-500"
                   />
                 </div>
                 <div>
@@ -754,7 +798,7 @@ export default function PropertiesPage() {
                     type="text"
                     value={editFormData.room_size || ''}
                     onChange={(e) => setEditFormData({ ...editFormData, room_size: e.target.value })}
-                    className="w-full p-2 border rounded-lg focus:outline-orange-500"
+                    className="w-full p-2 border rounded-lg focus:outline-blue-500"
                   />
                 </div>
               </div>
@@ -766,7 +810,7 @@ export default function PropertiesPage() {
                   required
                   value={editFormData.location || ''}
                   onChange={(e) => setEditFormData({ ...editFormData, location: e.target.value })}
-                  className="w-full p-2 border rounded-lg focus:outline-orange-500"
+                  className="w-full p-2 border rounded-lg focus:outline-blue-500"
                 />
               </div>
 
@@ -785,7 +829,7 @@ export default function PropertiesPage() {
                       longitude: coords ? Number(coords.lon) : editFormData.longitude,
                     });
                   }}
-                  className="w-full p-2 border rounded-lg focus:outline-orange-500"
+                  className="w-full p-2 border rounded-lg focus:outline-blue-500"
                 />
               </div>
 
@@ -797,7 +841,7 @@ export default function PropertiesPage() {
                     required
                     value={editFormData.whatsapp || ''}
                     onChange={(e) => setEditFormData({ ...editFormData, whatsapp: e.target.value })}
-                    className="w-full p-2 border rounded-lg focus:outline-orange-500 font-mono"
+                    className="w-full p-2 border rounded-lg focus:outline-blue-500 font-mono"
                   />
                 </div>
                 <div>
@@ -811,7 +855,7 @@ export default function PropertiesPage() {
                         : 'bg-slate-50 text-slate-600 border-slate-200'
                     }`}
                   >
-                    {editFormData.is_popular ? '⭐ POPULER' : 'STANDAR'}
+                    {editFormData.is_popular ? 'POPULER' : 'STANDAR'}
                   </button>
                 </div>
               </div>
@@ -822,7 +866,7 @@ export default function PropertiesPage() {
                   rows={3}
                   value={editFormData.description || ''}
                   onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                  className="w-full p-2 border rounded-lg focus:outline-orange-500"
+                  className="w-full p-2 border rounded-lg focus:outline-blue-500"
                 />
               </div>
 
@@ -837,7 +881,7 @@ export default function PropertiesPage() {
                 <button
                   type="submit"
                   disabled={savingEdit}
-                  className="flex items-center gap-1.5 px-4 py-1.5 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
                 >
                   {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
                   Simpan Perubahan
@@ -864,7 +908,7 @@ export default function PropertiesPage() {
               </div>
               <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                 <div 
-                  className="bg-orange-500 h-full transition-all duration-300"
+                  className="bg-blue-500 h-full transition-all duration-300"
                   style={{ width: `${(step / 3) * 100}%` }}
                 />
               </div>
@@ -891,7 +935,7 @@ export default function PropertiesPage() {
                           }}
                           className={`py-2 px-3 rounded-lg text-xs font-medium border text-center transition-all ${
                             category === cat 
-                              ? 'bg-orange-500 text-white border-orange-500 font-bold shadow-sm' 
+                              ? 'bg-blue-500 text-white border-blue-500 font-bold shadow-sm' 
                               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                           }`}
                         >
@@ -902,8 +946,8 @@ export default function PropertiesPage() {
                   </div>
 
                   {isApartment && (
-                    <div className="p-3.5 bg-orange-50/50 rounded-xl border border-orange-200 space-y-2">
-                      <label className="text-xs font-semibold text-orange-950 block">Tipe Apartemen</label>
+                    <div className="p-3.5 bg-blue-50/50 rounded-xl border border-blue-200 space-y-2">
+                      <label className="text-xs font-semibold text-blue-950 block">Tipe Apartemen</label>
                       <div className="flex flex-wrap gap-1.5">
                         {QUICK_APARTMENT_TYPES.map((t) => (
                           <button
@@ -912,8 +956,8 @@ export default function PropertiesPage() {
                             onClick={() => setApartmentType(t)}
                             className={`px-3 py-1 rounded-md text-xs font-medium border transition-all ${
                               apartmentType === t
-                                ? 'bg-orange-600 text-white border-orange-600'
-                                : 'bg-white text-slate-700 border-slate-200 hover:bg-orange-50'
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white text-slate-700 border-slate-200 hover:bg-blue-50'
                             }`}
                           >
                             {t}
@@ -925,7 +969,7 @@ export default function PropertiesPage() {
                         placeholder="cth: Studio / 2 BR Corner"
                         value={apartmentType}
                         onChange={(e) => setApartmentType(e.target.value)}
-                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-orange-500"
+                        className="w-full p-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-blue-500"
                       />
                     </div>
                   )}
@@ -940,7 +984,7 @@ export default function PropertiesPage() {
                           onClick={() => setTenantType(t)}
                           className={`py-2 px-3 rounded-lg text-xs font-medium border text-center transition-all ${
                             tenantType === t 
-                              ? 'bg-orange-500 text-white border-orange-500 font-bold shadow-sm' 
+                              ? 'bg-blue-500 text-white border-blue-500 font-bold shadow-sm' 
                               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                           }`}
                         >
@@ -963,7 +1007,7 @@ export default function PropertiesPage() {
                     </div>
                     <div>
                       <div className={`text-xs font-bold ${isPopular ? 'text-amber-900' : 'text-slate-800'}`}>
-                        {isPopular ? '⭐ Berlabel POPULER' : 'Listing Standar'}
+                        {isPopular ? 'Berlabel POPULER' : 'Listing Standar'}
                       </div>
                       <div className="text-[11px] text-slate-500">Ditampilkan di urutan paling atas beranda aplikasi.</div>
                     </div>
@@ -977,7 +1021,7 @@ export default function PropertiesPage() {
                       placeholder={isApartment ? 'cth: Pinus Apartment Studio 12A' : 'cth: Kost Melati Indah'}
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-orange-500"
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-blue-500"
                     />
                   </div>
 
@@ -989,7 +1033,7 @@ export default function PropertiesPage() {
                         placeholder="1.200.000"
                         value={priceMonthlyRaw ? Number(priceMonthlyRaw).toLocaleString('id-ID') : ''}
                         onChange={(e) => setPriceMonthlyRaw(e.target.value.replace(/[^0-9]/g, ''))}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-orange-500"
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-blue-500"
                       />
                     </div>
                     <div>
@@ -999,7 +1043,7 @@ export default function PropertiesPage() {
                         placeholder="13.000.000"
                         value={priceYearlyRaw ? Number(priceYearlyRaw).toLocaleString('id-ID') : ''}
                         onChange={(e) => setPriceYearlyRaw(e.target.value.replace(/[^0-9]/g, ''))}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-orange-500"
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm font-semibold focus:outline-blue-500"
                       />
                     </div>
                   </div>
@@ -1012,7 +1056,7 @@ export default function PropertiesPage() {
                       placeholder="cth: Sayang, Jatinangor"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-orange-500"
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-blue-500"
                     />
                   </div>
                 </div>
@@ -1037,7 +1081,7 @@ export default function PropertiesPage() {
                         min="0"
                         value={availableRooms}
                         onChange={(e) => setAvailableRooms(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-orange-500"
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-blue-500"
                       />
                     </div>
                     <div>
@@ -1047,7 +1091,7 @@ export default function PropertiesPage() {
                         placeholder={isApartment ? 'cth: 24 m²' : isWholeUnit ? 'cth: 36 m² (2 KT, 1 KM)' : 'cth: 3x4 Meter'}
                         value={roomSize}
                         onChange={(e) => setRoomSize(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-orange-500"
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-blue-500"
                       />
                     </div>
                   </div>
@@ -1059,7 +1103,7 @@ export default function PropertiesPage() {
                       placeholder="WiFi, Kasur, Kamar Mandi Dalam, AC, Lemari"
                       value={facilities}
                       onChange={(e) => setFacilities(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-orange-500"
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-blue-500"
                     />
                   </div>
 
@@ -1070,7 +1114,7 @@ export default function PropertiesPage() {
                       placeholder="Keterangan aturan listrik, air, gerbang, ketentuan jam malam dsb."
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-orange-500"
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-blue-500"
                     />
                   </div>
                 </div>
@@ -1089,11 +1133,11 @@ export default function PropertiesPage() {
                       <span className="text-[11px] font-bold text-slate-400">{photoUrls.length}/10 Foto Terunggah</span>
                     </div>
 
-                    <label className={`flex-1 border-2 border-dashed border-orange-300 rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer bg-orange-50/40 hover:bg-orange-50 transition-all ${
+                    <label className={`flex-1 border-2 border-dashed border-blue-300 rounded-xl p-3 flex items-center justify-center gap-2 cursor-pointer bg-blue-50/40 hover:bg-blue-50 transition-all ${
                       uploadingPhoto || photoUrls.length >= 10 ? 'opacity-50 pointer-events-none' : ''
                     }`}>
-                      <Upload className="w-4 h-4 text-orange-600" />
-                      <span className="text-xs font-bold text-orange-600">
+                      <Upload className="w-4 h-4 text-blue-600" />
+                      <span className="text-xs font-bold text-blue-600">
                         {uploadingPhoto ? uploadProgressText : '+ Pilih Foto Dari Laptop (Maks. 2MB)'}
                       </span>
                       <input
@@ -1113,7 +1157,7 @@ export default function PropertiesPage() {
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={url} alt={`preview-${idx}`} className="w-full h-full object-cover" />
                             {idx === 0 && (
-                              <span className="absolute bottom-1 left-1 bg-orange-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+                              <span className="absolute bottom-1 left-1 bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
                                 Utama
                               </span>
                             )}
@@ -1139,7 +1183,7 @@ export default function PropertiesPage() {
                       placeholder="Tempel tautan Google Maps di sini..."
                       value={mapsUrl}
                       onChange={(e) => handleMapsUrlChange(e.target.value)}
-                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-orange-500"
+                      className="w-full p-2.5 border border-slate-200 rounded-lg text-sm focus:outline-blue-500"
                     />
                   </div>
 
@@ -1151,7 +1195,7 @@ export default function PropertiesPage() {
                         placeholder="cth: -6.936269"
                         value={latitude}
                         onChange={(e) => setLatitude(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-xs focus:outline-orange-500"
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-xs focus:outline-blue-500"
                       />
                     </div>
                     <div>
@@ -1161,14 +1205,14 @@ export default function PropertiesPage() {
                         placeholder="cth: 107.764772"
                         value={longitude}
                         onChange={(e) => setLongitude(e.target.value)}
-                        className="w-full p-2.5 border border-slate-200 rounded-lg text-xs focus:outline-orange-500"
+                        className="w-full p-2.5 border border-slate-200 rounded-lg text-xs focus:outline-blue-500"
                       />
                     </div>
                   </div>
 
                   <div>
                     <label className="text-xs font-semibold text-slate-700 block mb-1">WhatsApp Pengelola *</label>
-                    <div className="flex items-center border border-slate-200 rounded-lg focus-within:border-orange-500 overflow-hidden">
+                    <div className="flex items-center border border-slate-200 rounded-lg focus-within:border-blue-500 overflow-hidden">
                       <div className="px-3 bg-slate-100 border-r border-slate-200 text-xs font-bold text-slate-600 flex items-center gap-1 py-2.5">
                         <Phone className="w-3.5 h-3.5" /> WA
                       </div>
@@ -1207,7 +1251,7 @@ export default function PropertiesPage() {
                     }
                     setStep(step + 1);
                   }}
-                  className="px-5 py-2 text-xs font-bold text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors"
+                  className="px-5 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   Lanjut ({step}/3)
                 </button>
@@ -1216,7 +1260,7 @@ export default function PropertiesPage() {
                   type="button"
                   onClick={handleSaveProperty}
                   disabled={submitting || uploadingPhoto}
-                  className="flex items-center gap-2 px-6 py-2 text-xs font-bold text-white bg-orange-600 rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
                   {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
                   Simpan & Terbitkan

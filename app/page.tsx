@@ -161,7 +161,7 @@ export default function DashboardOverviewPage() {
 
   // grafik batang
   const days = ov?.days ?? [];
-  const maxDay = Math.max(1, ...days.map((d) => d.total));
+  const maxDay = Math.max(4, ...days.map((d) => d.total));
   const barW = 28;
   const gap = 17;
 
