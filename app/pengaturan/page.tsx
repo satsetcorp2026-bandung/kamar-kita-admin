@@ -231,6 +231,75 @@ export default function PengaturanPage() {
         <span>Perubahan hanya berlaku untuk pesanan baru. Pesanan yang sudah berjalan tetap memakai angka lama. Setiap perubahan tercatat bersama nama admin.</span>
       </div>
 
+      <section className={`${CARD} p-5`}>
+        <h3 className="text-sm font-bold text-slate-800">Panduan singkat</h3>
+        <p className="text-xs text-slate-500 mt-0.5">Klik judul untuk membuka. Semua contoh memakai angka awal.</p>
+        <div className="mt-3 divide-y divide-slate-100 text-sm text-slate-700">
+          <details open className="py-2.5 group">
+            <summary className="cursor-pointer font-semibold text-slate-800">Cara mengubah angka</summary>
+            <ol className="list-decimal pl-5 mt-2 space-y-1 text-[13px] leading-relaxed text-slate-600">
+              <li>Ubah angka di kotak yang kamu mau. Kotak yang berubah akan berwarna biru.</li>
+              <li>Lihat tabel <b>Simulasi</b> di bawah untuk memastikan hasilnya masuk akal.</li>
+              <li>Tekan <b>Simpan perubahan</b> di bar bawah, lalu tekan OK pada pertanyaan konfirmasi.</li>
+              <li>Selesai. Pesanan baru langsung memakai angka baru. Pesanan yang sudah berjalan tidak ikut berubah.</li>
+            </ol>
+            <p className="text-[13px] text-slate-600 mt-2">Salah ubah? Tekan tombol kecil <b>awal ...</b> di samping nama isian untuk kembali ke angka awal, atau tekan <b>Batalkan</b> sebelum menyimpan.</p>
+          </details>
+          <details className="py-2.5">
+            <summary className="cursor-pointer font-semibold text-slate-800">Cara kerja tarif (3 tahap)</summary>
+            <div className="mt-2 text-[13px] leading-relaxed text-slate-600 space-y-1.5">
+              <p>Tarif dibagi menurut jarak. Contoh Pim Ride dengan angka awal:</p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                <li>Sampai 2 km: Rp8.000 (tarif tahap 1)</li>
+                <li>Lebih dari 2 km sampai 4 km: Rp11.000 (tarif tahap 2)</li>
+                <li>Lebih dari 4 km: Rp11.000 ditambah Rp2.250 untuk setiap km di atas 4 km</li>
+              </ul>
+              <p>Jadi perjalanan 6 km = Rp11.000 + (2 km x Rp2.250) = <b>Rp15.500</b>.</p>
+              <p>Pim Car caranya sama. Untuk mobil kelas besar, hasilnya dikalikan pengali (1,2 artinya 20 persen lebih mahal).</p>
+              <p>Angka 2 km dan 4 km bisa diubah di kotak <b>Batas jarak tarif</b>. Batas tahap 2 harus lebih besar dari tahap 1.</p>
+            </div>
+          </details>
+          <details className="py-2.5">
+            <summary className="cursor-pointer font-semibold text-slate-800">Tawar-menawar</summary>
+            <div className="mt-2 text-[13px] leading-relaxed text-slate-600 space-y-1.5">
+              <p>Tarif di atas adalah tarif rekomendasi. Penumpang dan driver boleh menawar di sekitarnya.</p>
+              <p><b>Batas bawah 85</b> artinya boleh turun sampai 85 persen (turun 15 persen). <b>Batas atas 125</b> artinya boleh naik sampai 125 persen (naik 25 persen).</p>
+              <p>Contoh tarif Rp10.000: tawaran boleh antara Rp8.500 sampai Rp12.500.</p>
+              <p className="text-amber-800">Hati-hati: untuk sementara jangan mempersempit rentang (jangan menaikkan batas bawah atau menurunkan batas atas), karena aplikasi HP masih memakai batas lama. Memperlebar rentang aman.</p>
+            </div>
+          </details>
+          <details className="py-2.5">
+            <summary className="cursor-pointer font-semibold text-slate-800">Komisi dan biaya platform</summary>
+            <div className="mt-2 text-[13px] leading-relaxed text-slate-600 space-y-1.5">
+              <p>Keduanya dipotong otomatis dari <b>saldo driver</b> saat trip selesai. Penumpang tetap membayar tunai ke driver sesuai harga kesepakatan.</p>
+              <ul className="list-disc pl-5 space-y-0.5">
+                <li><b>Komisi</b>: persen dari harga kesepakatan, hanya untuk trip yang lebih jauh dari batas jarak komisi (awal 2 km). Trip sampai 2 km bebas komisi.</li>
+                <li><b>Biaya platform</b>: nominal tetap per trip selesai (awal Rp1.000), berlaku untuk semua trip.</li>
+              </ul>
+              <p>Contoh trip 3 km dengan harga Rp12.000: komisi 10 persen = Rp1.200, ditambah biaya platform Rp1.000, jadi saldo driver berkurang <b>Rp2.200</b>. Trip 1,5 km hanya kena Rp1.000.</p>
+            </div>
+          </details>
+          <details className="py-2.5">
+            <summary className="cursor-pointer font-semibold text-slate-800">Harga Sobat Tolongin</summary>
+            <p className="mt-2 text-[13px] leading-relaxed text-slate-600">Harga langganan dan lencana Terbaik per bulan. Angka baru dipakai saat kamu mengaktifkan langganan atau lencana berikutnya di halaman Sobat Tolongin. Yang sudah tercatat di Keuangan tidak berubah.</p>
+          </details>
+          <details className="py-2.5">
+            <summary className="cursor-pointer font-semibold text-slate-800">Pagar biaya peta (saklar darurat)</summary>
+            <p className="mt-2 text-[13px] leading-relaxed text-slate-600">Rute jalan di aplikasi memakai Google Maps yang berbayar per permintaan. Kalau tagihan mulai naik atau ada yang aneh, ubah <b>Rute jalan asli</b> menjadi Mati lalu simpan. Aplikasi akan memakai garis lurus (gratis) sampai kamu menyalakannya lagi. <b>Batas permintaan per hari</b> adalah pagar otomatis: kalau sudah tercapai, permintaan rute berhenti sampai besok.</p>
+          </details>
+          <details className="py-2.5">
+            <summary className="cursor-pointer font-semibold text-slate-800">Tips supaya aman</summary>
+            <ul className="list-disc pl-5 mt-2 space-y-0.5 text-[13px] leading-relaxed text-slate-600">
+              <li>Ubah satu kelompok dulu, lihat hasilnya di beberapa pesanan, baru ubah yang lain.</li>
+              <li>Cek tabel Simulasi sebelum menyimpan. Pastikan tarif jarak dekat dan jauh masih wajar.</li>
+              <li>Tarif terlalu murah membuat driver rugi dan malas narik. Komisi terlalu besar membuat driver pindah ke aplikasi lain.</li>
+              <li>Kalau mengubah tarif saat jam ramai, pesanan yang sedang mencari driver tetap memakai tarif lama.</li>
+              <li>Semua perubahan tercatat di Riwayat perubahan di bagian bawah halaman, lengkap dengan nama admin.</li>
+            </ul>
+          </details>
+        </div>
+      </section>
+
       {error && (
         <div className="flex items-start justify-between gap-3 bg-rose-50 border border-rose-200 text-rose-800 text-sm rounded-2xl px-4 py-3">
           <span>{error}</span>
