@@ -84,6 +84,14 @@ function describe(r: Row): { label: string; tone: string; who: string; info: str
     return { label: 'Pengaturan diubah', tone: blue, who: KEY_LABEL[k] ?? k, info: `${settingVal(k, d.old)} menjadi ${settingVal(k, d.new)}` };
   }
   if (a.startsWith('sos_')) return { label: `SOS ditandai ${a.replace('sos_', '')}`, tone: red, who: str(r.target_id).slice(0, 8), info: '' };
+  if (a === 'report_status') return { label: 'Status laporan pengguna diubah', tone: blue, who: name !== '-' ? name : str(r.target_id).slice(0, 8), info: str(d.p_status) };
+  if (a === 'tolongin_badge') return { label: 'Lencana Terbaik diperpanjang', tone: green, who: name !== '-' ? name : str(r.target_id).slice(0, 8), info: `${str(d.p_months)} bulan` };
+  if (a === 'tolongin_langganan') return { label: 'Langganan Tolongin diperpanjang', tone: green, who: name !== '-' ? name : str(r.target_id).slice(0, 8), info: `${str(d.p_months)} bulan` };
+  if (a === 'tolongin_job') return { label: 'Pekerjaan Tolongin diselesaikan admin', tone: amber, who: str(r.target_id).slice(0, 8), info: str(d.p_outcome) };
+  if (a === 'staff_add') return { label: 'Staf ditambahkan', tone: blue, who: str(d.email), info: `Peran ${str(d.role)}` };
+  if (a === 'staff_role') return { label: 'Peran staf diubah', tone: blue, who: name, info: `${str(d.old)} menjadi ${str(d.new)}` };
+  if (a === 'staff_remove') return { label: 'Akses staf dicabut', tone: red, who: name, info: '' };
+  if (a === 'staff_name') return { label: 'Nama staf diubah', tone: slate, who: name, info: '' };
   if (a === 'test_account_on') return { label: 'Ditandai akun uji coba', tone: slate, who: name, info: '' };
   if (a === 'test_account_off') return { label: 'Tanda akun uji coba dicabut', tone: slate, who: name, info: '' };
   return { label: a, tone: slate, who: name !== '-' ? name : str(r.target_id), info: r.detail ? JSON.stringify(r.detail) : '' };
