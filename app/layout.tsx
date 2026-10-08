@@ -333,7 +333,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     );
 
     content = (
-      <div className="min-h-screen flex">
+      <div
+        className="min-h-screen flex"
+        style={{ background: 'linear-gradient(160deg, #dde5ef 0%, #cbd7e5 55%, #c2cfdf 100%)', backgroundAttachment: 'fixed' }}
+      >
         {/* Sidebar desktop */}
         <aside className="hidden lg:block print:!hidden w-[272px] shrink-0 p-3 sticky top-0 h-screen">
           {sidebar}
@@ -357,7 +360,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
 
         <div className="flex-1 min-w-0 flex flex-col">
-          <header className="print:hidden sticky top-0 z-30 h-14 bg-[#eef1f8]/85 backdrop-blur px-4 sm:px-6 lg:px-8 flex items-center gap-3">
+          <header className="print:hidden sticky top-0 z-30 h-14 bg-[#d3dde9]/80 backdrop-blur px-4 sm:px-6 lg:px-8 flex items-center gap-3">
             <button
               onClick={() => setDrawerOpen(true)}
               className="lg:hidden p-2 -ml-2 rounded-lg text-slate-600 hover:bg-white"
@@ -380,7 +383,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </div>
           </header>
 
-          <main className="flex-1 px-4 pb-8 pt-2 sm:px-6 lg:px-8">{children}</main>
+          <main className="flex-1 px-4 pb-8 pt-2 sm:px-6 lg:px-8 [&_.bg-white]:!bg-[#f6f8fc]">{children}</main>
 
           {searchOpen && (
             <div className="print:hidden fixed inset-0 z-[60] flex items-start justify-center pt-24 px-4">
@@ -420,7 +423,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="id">
-      <body className={isLogin ? 'bg-slate-950 text-slate-100' : 'bg-[#eef1f8] text-slate-900 antialiased'}>
+      <body className={isLogin ? 'bg-slate-950 text-slate-100' : 'bg-[#cbd7e5] text-slate-900 antialiased'}>
         {content}
       </body>
     </html>

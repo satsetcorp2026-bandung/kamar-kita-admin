@@ -40,7 +40,7 @@ interface TripLite {
 const EMPTY_STATS: Stats = { properties: 0, users: 0, preloved: 0, sosActive: 0, sosTotal: 0 };
 
 const glass =
-  'rounded-[22px] border border-white/70 bg-gradient-to-br from-white/70 to-white/40 shadow-[8px_10px_22px_rgba(48,66,92,0.16),-6px_-6px_16px_rgba(255,255,255,0.6)]';
+  'rounded-[22px] border border-white/70 bg-gradient-to-br from-white/60 to-white/30 shadow-[8px_10px_22px_rgba(48,66,92,0.16),-6px_-6px_16px_rgba(255,255,255,0.6)]';
 const tile =
   'rounded-[20px] p-4 shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)]';
 const iconBox =
