@@ -22,6 +22,8 @@ import {
   Wallet,
   MapPin,
   SlidersHorizontal,
+  Gauge,
+  History,
   Search,
   LogOut,
   Loader2,
@@ -41,6 +43,8 @@ const navGroups: NavGroup[] = [
       { name: 'Laporan Pengguna', href: '/laporan', icon: Flag, badgeKey: 'reports' },
       { name: 'Laporan Investor', href: '/analitik', icon: TrendingUp },
       { name: 'Keuangan', href: '/keuangan', icon: Wallet },
+      { name: 'Biaya Peta dan AI', href: '/biaya', icon: Gauge },
+      { name: 'Catatan Aktivitas', href: '/aktivitas', icon: History },
     ],
   },
   {
