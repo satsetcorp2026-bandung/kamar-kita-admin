@@ -3,296 +3,356 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { supabase } from './lib/supabase';
-import { 
-  Building2, 
-  HandHeart, 
-  Users, 
-  ShoppingBag, 
-  ShieldAlert, 
-  Clock, 
-  ArrowUpRight, 
-  Radio, 
+import {
+  Building2,
+  HandHeart,
+  Users,
+  ShoppingBag,
+  ShieldAlert,
+  Flag,
+  Clock,
+  CalendarClock,
+  RefreshCw,
+  ChevronRight,
   CheckCircle2,
-  ExternalLink,
-  ChevronRight
+  ArrowUpRight,
 } from 'lucide-react';
 
-interface DashboardStats {
-  totalProperties: number;
-  pendingPartners: number;
-  activePartners: number;
-  totalUsers: number;
-  activePreloved: number;
-  activeSosVolunteers: number;
-  totalSosVolunteers: number;
+interface Stats {
+  properties: number;
+  users: number;
+  preloved: number;
+  sosActive: number;
+  sosTotal: number;
 }
 
+interface PartnerLite {
+  status: string;
+  subscription_until: string | null;
+}
+
+interface ReportLite {
+  id: string;
+  created_at: string;
+  context: string;
+  reason: string;
+  status: string;
+  reporter_name: string;
+  reported_name: string;
+}
+
+interface ReportSummary {
+  open: number;
+  reviewed: number;
+  closed: number;
+  new_7d: number;
+}
+
+const EMPTY_STATS: Stats = { properties: 0, users: 0, preloved: 0, sosActive: 0, sosTotal: 0 };
+
+function fmtNum(n: number) {
+  return new Intl.NumberFormat('id-ID').format(n);
+}
+
+function timeAgo(iso: string, nowMs: number) {
+  const diff = Math.max(0, nowMs - new Date(iso).getTime());
+  const m = Math.floor(diff / 60000);
+  if (m < 1) return 'baru saja';
+  if (m < 60) return `${m} menit lalu`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} jam lalu`;
+  return `${Math.floor(h / 24)} hari lalu`;
+}
+
+const CONTEXT_LABEL: Record<string, string> = {
+  tolongin_chat: 'Chat Tolongin',
+  order_chat: 'Chat Pim Ride',
+};
+
 export default function DashboardOverviewPage() {
-  const [stats, setStats] = useState<DashboardStats>({
-    totalProperties: 0,
-    pendingPartners: 0,
-    activePartners: 0,
-    totalUsers: 0,
-    activePreloved: 0,
-    activeSosVolunteers: 0,
-    totalSosVolunteers: 0,
-  });
+  const [stats, setStats] = useState<Stats>(EMPTY_STATS);
+  const [partners, setPartners] = useState<PartnerLite[]>([]);
+  const [reports, setReports] = useState<ReportLite[]>([]);
+  const [summary, setSummary] = useState<ReportSummary>({ open: 0, reviewed: 0, closed: 0, new_7d: 0 });
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
-    let isMounted = true;
+    let alive = true;
 
-    async function loadStats() {
-      try {
-        const [
-          { count: propCount },
-          { count: pendingPartnerCount },
-          { count: activePartnerCount },
-          { count: userCount },
-          { count: prelovedCount },
-          { count: activeSosCount },
-          { count: totalSosCount },
-        ] = await Promise.all([
-          supabase.from('properties').select('*', { count: 'exact', head: true }),
-          supabase.from('tolongin_partners').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabase.from('tolongin_partners').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
-          supabase.from('profiles').select('*', { count: 'exact', head: true }),
-          supabase.from('preloved_items').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-          supabase.from('sos_volunteers').select('*', { count: 'exact', head: true }).eq('is_active', true),
-          supabase.from('sos_volunteers').select('*', { count: 'exact', head: true }),
-        ]);
-
-        if (isMounted) {
-          setStats({
-            totalProperties: propCount || 0,
-            pendingPartners: pendingPartnerCount || 0,
-            activePartners: activePartnerCount || 0,
-            totalUsers: userCount || 0,
-            activePreloved: prelovedCount || 0,
-            activeSosVolunteers: activeSosCount || 0,
-            totalSosVolunteers: totalSosCount || 0,
-          });
+    async function run() {
+      const count = async (q: PromiseLike<{ count: number | null }>) => {
+        try {
+          const r = await q;
+          return r.count ?? 0;
+        } catch {
+          return 0;
         }
-      } catch (err) {
-        console.warn('Gagal memuat ringkasan:', err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+      };
+
+      const [properties, users, preloved, sosActive, sosTotal, partnerRes, reportRes, summaryRes] = await Promise.all([
+        count(supabase.from('properties').select('*', { count: 'exact', head: true })),
+        count(supabase.from('profiles').select('*', { count: 'exact', head: true })),
+        count(supabase.from('preloved_items').select('*', { count: 'exact', head: true }).eq('status', 'active')),
+        count(supabase.from('sos_volunteers').select('*', { count: 'exact', head: true }).eq('is_active', true)),
+        count(supabase.from('sos_volunteers').select('*', { count: 'exact', head: true })),
+        supabase.rpc('admin_tolongin_partners'),
+        supabase.rpc('admin_reports_list', { p_status: 'open' }),
+        supabase.rpc('admin_report_summary'),
+      ]);
+
+      if (!alive) return;
+      setStats({ properties, users, preloved, sosActive, sosTotal });
+      if (!partnerRes.error && partnerRes.data) setPartners(partnerRes.data as PartnerLite[]);
+      if (!reportRes.error && reportRes.data) setReports((reportRes.data as ReportLite[]).slice(0, 5));
+      if (!summaryRes.error && summaryRes.data) setSummary(summaryRes.data as ReportSummary);
+      setNowMs(Date.now());
+      setUpdatedAt(new Date());
+      setLoading(false);
+      setRefreshing(false);
     }
 
-    loadStats();
-
+    run();
     return () => {
-      isMounted = false;
+      alive = false;
     };
-  }, []);
+  }, [reloadKey]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    setReloadKey((k) => k + 1);
+  };
+
+  const pendingPartners = partners.filter((p) => p.status === 'pending').length;
+  const activePartners = partners.filter((p) => p.status === 'active' || p.status === 'approved').length;
+  const activeWithSub = partners.filter((p) => p.status === 'active' || p.status === 'approved');
+  const subExpired = activeWithSub.filter((p) => !p.subscription_until || new Date(p.subscription_until).getTime() <= nowMs).length;
+  const subSoon = activeWithSub.filter((p) => {
+    if (!p.subscription_until) return false;
+    const left = new Date(p.subscription_until).getTime() - nowMs;
+    return left > 0 && left <= 7 * 86400000;
+  }).length;
+
+  const actions = [
+    {
+      key: 'reports',
+      label: 'Laporan pengguna terbuka',
+      hint: 'Tinjau isi obrolan dan ambil tindakan',
+      value: summary.open,
+      href: '/laporan',
+      icon: Flag,
+      tone: 'rose',
+    },
+    {
+      key: 'pending',
+      label: 'Sobat menunggu verifikasi',
+      hint: 'Periksa KTP, SIM, dan data kendaraan',
+      value: pendingPartners,
+      href: '/tolongin',
+      icon: Clock,
+      tone: 'amber',
+    },
+    {
+      key: 'sub',
+      label: 'Langganan Sobat bermasalah',
+      hint: `${subExpired} sudah habis, ${subSoon} habis dalam 7 hari`,
+      value: subExpired + subSoon,
+      href: '/tolongin',
+      icon: CalendarClock,
+      tone: 'blue',
+    },
+  ];
+
+  const toneClass: Record<string, { box: string; num: string }> = {
+    rose: { box: 'bg-rose-50 text-rose-600 border-rose-100', num: 'text-rose-600' },
+    amber: { box: 'bg-amber-50 text-amber-600 border-amber-100', num: 'text-amber-600' },
+    blue: { box: 'bg-blue-50 text-blue-600 border-blue-100', num: 'text-blue-600' },
+  };
+
+  const totalTodo = actions.reduce((a, b) => a + b.value, 0);
+
+  const kpis = [
+    { label: 'Warga terdaftar', value: stats.users, sub: 'Akun anak kos dan pencari hunian', icon: Users, href: undefined as string | undefined },
+    { label: 'Hunian terdaftar', value: stats.properties, sub: 'Kost, kontrakan, rumah sewa', icon: Building2, href: '/properties' },
+    { label: 'Sobat siap kerja', value: activePartners, sub: 'Mitra aktif menerima pesanan', icon: HandHeart, href: '/tolongin' },
+    { label: 'Preloved aktif', value: stats.preloved, sub: 'Listing siap jual', icon: ShoppingBag, href: '/preloved' },
+  ];
 
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8">
-      {/* Title Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 pb-5">
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-gray-900">Ringkasan Operasional</h1>
-          <p className="text-sm text-gray-500 mt-1">
-            Metrik operasional dan kesehatan ekosistem Kamar Kita secara real-time.
+          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Ringkasan Operasional</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Kondisi ekosistem Kamar Kita dan hal yang perlu kamu tangani hari ini.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-full w-fit">
-          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          Sistem Online & Sinkron
-        </div>
-      </div>
-
-      {/* Grid 6 Metrik Utama (Lengkap & Seimbang) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {/* 1. Hunian */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 tracking-wide uppercase">Hunian Terdaftar</span>
-            <div className="w-8 h-8 rounded-lg bg-orange-50 border border-orange-100 flex items-center justify-center text-orange-600">
-              <Building2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              {loading ? '-' : stats.totalProperties}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Kost, Kontrakan, & Rumah Sewa</p>
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
-            <Link href="/properties" className="text-orange-600 font-semibold hover:underline inline-flex items-center gap-1">
-              Kelola Hunian <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
-        </div>
-
-        {/* 2. Mitra Tolongin Butuh Approval */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 tracking-wide uppercase">Verifikasi Mitra</span>
-            <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              {loading ? '-' : stats.pendingPartners}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Mitra Tolongin menunggu approval</p>
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
-            <Link href="/tolongin" className="text-amber-600 font-semibold hover:underline inline-flex items-center gap-1">
-              Buka Pengajuan <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
-        </div>
-
-        {/* 3. Sobat Tolongin Aktif */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 tracking-wide uppercase">Sobat Siap Kerja</span>
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-              <HandHeart className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              {loading ? '-' : stats.activePartners}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Mitra aktif menerima pesanan warga</p>
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
-            <span className="text-emerald-600 font-medium inline-flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" /> Terverifikasi
+        <div className="flex items-center gap-3">
+          {updatedAt && (
+            <span className="text-xs text-slate-400">
+              Diperbarui {updatedAt.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
             </span>
-          </div>
-        </div>
-
-        {/* 4. Relawan Siaga SOS (Baru) */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition-shadow relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 tracking-wide uppercase">Relawan Siaga SOS</span>
-            <div className="w-8 h-8 rounded-lg bg-rose-50 border border-rose-100 flex items-center justify-center text-rose-600">
-              <ShieldAlert className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl font-extrabold text-gray-900 tracking-tight">
-                {loading ? '-' : stats.activeSosVolunteers}
-              </span>
-              <span className="text-xs text-gray-500">/ {stats.totalSosVolunteers} terdaftar</span>
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Aparat, medis, & warga aktif di radar</p>
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
-            <Link href="/sos" className="text-rose-600 font-semibold hover:underline inline-flex items-center gap-1">
-              Kelola Posko & Tim <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
-        </div>
-
-        {/* 5. User Terdaftar */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 tracking-wide uppercase">Warga Terdaftar</span>
-            <div className="w-8 h-8 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
-              <Users className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              {loading ? '-' : stats.totalUsers}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Akun anak kos & pencari hunian</p>
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-xs text-gray-500">
-            <span>Komunitas Jatinangor</span>
-          </div>
-        </div>
-
-        {/* 6. Preloved */}
-        <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm hover:shadow transition-shadow">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-gray-500 tracking-wide uppercase">Barang Preloved</span>
-            <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
-              <ShoppingBag className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="mt-3">
-            <div className="text-2xl font-extrabold text-gray-900 tracking-tight">
-              {loading ? '-' : stats.activePreloved}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Listing barang bekas siap jual</p>
-          </div>
-          <div className="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-xs">
-            <Link href="/preloved" className="text-purple-600 font-semibold hover:underline inline-flex items-center gap-1">
-              Cek Listing <ChevronRight className="w-3 h-3" />
-            </Link>
-          </div>
+          )}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 transition"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+            Muat ulang
+          </button>
         </div>
       </div>
 
-      {/* Bagian Bawah: Banner Siaga & Pintasan Cepat */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        {/* Banner Pemantauan SOS Live */}
-        <div className="lg:col-span-2 bg-gradient-to-r from-slate-900 to-slate-800 text-white rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between">
-          <div className="flex items-start justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/10 text-rose-300 text-xs font-semibold mb-3 border border-white/10">
-                <Radio className="w-3.5 h-3.5 animate-pulse text-rose-400" />
-                Pusat Tanggap Darurat Warga (SOS)
+      {/* Perlu tindakan */}
+      <section className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">Perlu tindakan</h3>
+            <p className="text-xs text-slate-500 mt-0.5">Urutkan pekerjaanmu dari yang paling mendesak.</p>
+          </div>
+          {!loading && totalTodo === 0 && (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
+              <CheckCircle2 className="w-3.5 h-3.5" /> Semua beres
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+          {actions.map((a) => {
+            const Icon = a.icon;
+            const t = toneClass[a.tone];
+            return (
+              <Link key={a.key} href={a.href} className="group p-5 flex items-start gap-4 hover:bg-slate-50/70 transition">
+                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center shrink-0 ${t.box}`}>
+                  <Icon className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className={`text-2xl font-extrabold tracking-tight ${a.value > 0 ? t.num : 'text-slate-300'}`}>
+                    {loading ? '-' : fmtNum(a.value)}
+                  </div>
+                  <div className="text-[13px] font-semibold text-slate-800 mt-0.5">{a.label}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">{a.hint}</div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-slate-500 mt-1 shrink-0" />
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* KPI */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {kpis.map((k) => {
+          const Icon = k.icon;
+          const body = (
+            <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hover:border-slate-300 hover:shadow transition h-full">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">{k.label}</span>
+                <Icon className="w-4 h-4 text-slate-400" />
               </div>
-              <h2 className="text-lg font-bold">Keamanan & Solidaritas Lingkungan Kos</h2>
-              <p className="text-xs text-slate-300 mt-1.5 max-w-md leading-relaxed">
-                Relawan yang aktif akan langsung terdeteksi oleh radar darurat di HP anak kos saat tombol SOS ditekan. Pastikan titik posko siaga selalu terbarui.
+              <div className="mt-3 text-3xl font-extrabold tracking-tight text-slate-900 tabular-nums">
+                {loading ? '-' : fmtNum(k.value)}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">{k.sub}</p>
+            </div>
+          );
+          return k.href ? (
+            <Link key={k.label} href={k.href} className="block">
+              {body}
+            </Link>
+          ) : (
+            <div key={k.label}>{body}</div>
+          );
+        })}
+      </div>
+
+      {/* Bawah */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Laporan terbaru */}
+        <section className="lg:col-span-2 bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">Laporan terbuka terbaru</h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                {summary.new_7d} laporan masuk dalam 7 hari terakhir
               </p>
             </div>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-white/10 flex items-center justify-between">
-            <div className="text-xs text-slate-300">
-              Status radar: <span className="font-semibold text-white">{stats.activeSosVolunteers} Posko Standby</span>
-            </div>
-            <Link
-              href="/sos"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-600 hover:bg-orange-500 text-white rounded-lg text-xs font-semibold transition"
-            >
-              Buka Radar Admin <ArrowUpRight className="w-3.5 h-3.5" />
+            <Link href="/laporan" className="text-xs font-semibold text-blue-600 hover:text-blue-700 inline-flex items-center gap-1">
+              Lihat semua <ArrowUpRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-        </div>
-
-        {/* Akses Pintas Operasional */}
-        <div className="bg-white border border-gray-200 rounded-2xl p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-gray-900">Aksi Cepat Admin</h3>
-            <p className="text-xs text-gray-500 mt-1">Kelola konten dan aset promosi</p>
-
-            <div className="space-y-2.5 mt-4">
-              <Link
-                href="/banners"
-                className="flex items-center justify-between p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 text-xs font-medium text-gray-700 transition"
-              >
-                <span>Atur Banner Promo</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </Link>
-              <Link
-                href="/properties"
-                className="flex items-center justify-between p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 text-xs font-medium text-gray-700 transition"
-              >
-                <span>Verifikasi Kost Baru</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </Link>
-              <Link
-                href="/tolongin"
-                className="flex items-center justify-between p-2.5 rounded-lg border border-gray-100 hover:bg-gray-50 text-xs font-medium text-gray-700 transition"
-              >
-                <span>Daftar Sobat Tolongin</span>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
-              </Link>
+          {reports.length === 0 ? (
+            <div className="px-5 py-12 text-center text-sm text-slate-400">
+              {loading ? 'Memuat...' : 'Tidak ada laporan terbuka.'}
             </div>
-          </div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {reports.map((r) => (
+                <li key={r.id}>
+                  <Link href="/laporan" className="px-5 py-3.5 flex items-center gap-4 hover:bg-slate-50/70 transition">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-semibold text-slate-900 truncate">
+                        {r.reported_name}
+                        <span className="font-normal text-slate-400"> dilaporkan oleh </span>
+                        {r.reporter_name}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5 truncate">
+                        {CONTEXT_LABEL[r.context] ?? r.context} - {r.reason}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-slate-400 shrink-0">{timeAgo(r.created_at, nowMs)}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* SOS + pintasan */}
+        <div className="space-y-4">
+          <section className="bg-slate-950 text-white rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-semibold text-rose-300">
+              <ShieldAlert className="w-4 h-4" /> Jaringan Relawan SOS
+            </div>
+            <div className="mt-3 flex items-baseline gap-2">
+              <span className="text-3xl font-extrabold tabular-nums">{loading ? '-' : stats.sosActive}</span>
+              <span className="text-xs text-slate-400">dari {stats.sosTotal} relawan aktif</span>
+            </div>
+            <p className="text-xs text-slate-400 mt-2 leading-relaxed">
+              Relawan aktif muncul di radar darurat saat warga menekan tombol SOS.
+            </p>
+            <Link
+              href="/sos"
+              className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-xs font-semibold transition"
+            >
+              Kelola relawan <ArrowUpRight className="w-3.5 h-3.5" />
+            </Link>
+          </section>
+
+          <section className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm">
+            <h3 className="text-sm font-bold text-slate-900">Pintasan</h3>
+            <div className="mt-3 space-y-1.5">
+              {[
+                { href: '/banners', label: 'Atur banner promo' },
+                { href: '/properties', label: 'Verifikasi hunian baru' },
+                { href: '/tolongin', label: 'Daftar Sobat Tolongin' },
+              ].map((l) => (
+                <Link
+                  key={l.href}
+                  href={l.href}
+                  className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-slate-100 hover:bg-slate-50 text-[13px] font-medium text-slate-700 transition"
+                >
+                  {l.label}
+                  <ChevronRight className="w-4 h-4 text-slate-300" />
+                </Link>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     </div>
