@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   ShieldAlert,
   Flag,
+  Bike,
   LogOut,
   Loader2,
   Menu,
@@ -22,7 +23,7 @@ import {
   Lock,
 } from 'lucide-react';
 
-type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeKey?: 'reports' };
+type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeKey?: 'reports' | 'drivers' };
 type NavGroup = { label: string; items: NavItem[] };
 
 const navGroups: NavGroup[] = [
@@ -32,6 +33,10 @@ const navGroups: NavGroup[] = [
       { name: 'Ringkasan', href: '/', icon: LayoutDashboard },
       { name: 'Laporan Pengguna', href: '/laporan', icon: Flag, badgeKey: 'reports' },
     ],
+  },
+  {
+    label: 'PimPim',
+    items: [{ name: 'Driver Pim', href: '/drivers', icon: Bike, badgeKey: 'drivers' }],
   },
   {
     label: 'Layanan',
@@ -71,6 +76,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [email, setEmail] = useState('');
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [openReports, setOpenReports] = useState(0);
+  const [pendingDrivers, setPendingDrivers] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isLogin = pathname === '/login';
@@ -133,6 +139,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       const summary = await supabase.rpc('admin_report_summary');
       if (isMounted && !summary.error && summary.data) {
         setOpenReports(Number((summary.data as { open?: number }).open ?? 0));
+      }
+
+      const drv = await supabase.rpc('admin_driver_summary');
+      if (isMounted && !drv.error && drv.data) {
+        setPendingDrivers(Number((drv.data as { pending?: number }).pending ?? 0));
       }
     }
 
@@ -207,7 +218,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
-                  const badge = item.badgeKey === 'reports' ? openReports : 0;
+                  const badge = item.badgeKey === 'reports' ? openReports : item.badgeKey === 'drivers' ? pendingDrivers : 0;
                   return (
                     <Link
                       key={item.href}

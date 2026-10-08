@@ -12,6 +12,7 @@ import {
   Flag,
   Clock,
   CalendarClock,
+  Bike,
   RefreshCw,
   ChevronRight,
   CheckCircle2,
@@ -74,6 +75,7 @@ export default function DashboardOverviewPage() {
   const [partners, setPartners] = useState<PartnerLite[]>([]);
   const [reports, setReports] = useState<ReportLite[]>([]);
   const [summary, setSummary] = useState<ReportSummary>({ open: 0, reviewed: 0, closed: 0, new_7d: 0 });
+  const [driverSummary, setDriverSummary] = useState({ pending: 0, approved: 0, online: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
@@ -94,7 +96,7 @@ export default function DashboardOverviewPage() {
         }
       };
 
-      const [properties, users, preloved, sosActive, sosTotal, partnerRes, reportRes, summaryRes] = await Promise.all([
+      const [properties, users, preloved, sosActive, sosTotal, partnerRes, reportRes, summaryRes, driverRes] = await Promise.all([
         count(supabase.from('properties').select('*', { count: 'exact', head: true })),
         count(supabase.from('profiles').select('*', { count: 'exact', head: true })),
         count(supabase.from('preloved_items').select('*', { count: 'exact', head: true }).eq('status', 'active')),
@@ -103,6 +105,7 @@ export default function DashboardOverviewPage() {
         supabase.rpc('admin_tolongin_partners'),
         supabase.rpc('admin_reports_list', { p_status: 'open' }),
         supabase.rpc('admin_report_summary'),
+        supabase.rpc('admin_driver_summary'),
       ]);
 
       if (!alive) return;
@@ -110,6 +113,7 @@ export default function DashboardOverviewPage() {
       if (!partnerRes.error && partnerRes.data) setPartners(partnerRes.data as PartnerLite[]);
       if (!reportRes.error && reportRes.data) setReports((reportRes.data as ReportLite[]).slice(0, 5));
       if (!summaryRes.error && summaryRes.data) setSummary(summaryRes.data as ReportSummary);
+      if (!driverRes.error && driverRes.data) setDriverSummary(driverRes.data as { pending: number; approved: number; online: number });
       setNowMs(Date.now());
       setUpdatedAt(new Date());
       setLoading(false);
@@ -146,6 +150,15 @@ export default function DashboardOverviewPage() {
       href: '/laporan',
       icon: Flag,
       tone: 'rose',
+    },
+    {
+      key: 'drivers',
+      label: 'Driver menunggu verifikasi',
+      hint: `${driverSummary.approved} driver aktif, ${driverSummary.online} online sekarang`,
+      value: driverSummary.pending,
+      href: '/drivers',
+      icon: Bike,
+      tone: 'amber',
     },
     {
       key: 'pending',
@@ -222,7 +235,7 @@ export default function DashboardOverviewPage() {
             </span>
           )}
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-slate-100">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-100">
           {actions.map((a) => {
             const Icon = a.icon;
             const t = toneClass[a.tone];
