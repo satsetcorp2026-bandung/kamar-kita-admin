@@ -82,6 +82,14 @@ function str(v: string | number | null | undefined) {
   return v === null || v === undefined || v === '' ? '-' : String(v);
 }
 
+function tint(tone: string) {
+  if (tone.includes('amber')) return 'from-[#f9e6c6] to-[#efcd96]';
+  if (tone.includes('rose')) return 'from-[#f7d9de] to-[#ebb0ba]';
+  if (tone.includes('emerald')) return 'from-[#c6ebe1] to-[#98d4c9]';
+  if (tone.includes('blue')) return 'from-[#d9e8f4] to-[#b6d0e4]';
+  return 'from-[#e8edf4] to-[#cfd9e6]';
+}
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<OrderRow[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -240,12 +248,12 @@ export default function OrdersPage() {
               setLoading(true);
               setGroup(c.key);
             }}
-            className={`text-left rounded-3xl border p-5 bg-white/80 backdrop-blur transition shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)] ${
-              group === c.key ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-white hover:border-slate-200'
+            className={`text-left rounded-[22px] p-5 bg-gradient-to-br ${tint(c.tone)} transition shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)] ${
+              group === c.key ? 'ring-2 ring-[#2f7088]' : 'hover:brightness-105'
             }`}
           >
-            <div className="text-xs font-semibold text-slate-500">{c.label}</div>
-            <div className={`mt-1.5 text-2xl font-extrabold tabular-nums ${c.tone}`}>{c.value === undefined ? '-' : c.value}</div>
+            <div className="text-xs font-semibold text-slate-600">{c.label}</div>
+            <div className={`mt-1.5 text-2xl font-extrabold tabular-nums text-slate-800`}>{c.value === undefined ? '-' : c.value}</div>
           </button>
         ))}
       </div>
@@ -257,7 +265,7 @@ export default function OrdersPage() {
             { label: 'Komisi dari trip', value: summary.commission, hint: 'Potongan dari saldo driver' },
             { label: 'Biaya platform', value: summary.platform_fee, hint: 'Rp1.000 per trip selesai' },
           ].map((k) => (
-            <div key={k.label} className="rounded-3xl border border-white bg-white/80 backdrop-blur p-5 shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]">
+            <div key={k.label} className="rounded-[22px] bg-gradient-to-br from-[#eaf3f9] to-[#cfe2ee] p-5 shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)]">
               <div className="text-xs font-semibold text-slate-500">{k.label}</div>
               <div className="mt-1.5 text-xl font-extrabold tabular-nums text-slate-900">{rp(k.value)}</div>
               <div className="text-[11px] text-slate-400 mt-0.5">{k.hint}</div>

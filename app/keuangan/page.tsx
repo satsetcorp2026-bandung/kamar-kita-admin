@@ -80,15 +80,16 @@ function delta(cur: number, prev: number) {
 }
 function errText(e: unknown) { return e instanceof Error ? e.message : 'Terjadi kesalahan.'; }
 
-const SHADOW = 'shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]';
-
 function Card({ title, value, sub, tone, hero }: { title: string; value: string; sub?: string; tone?: 'good' | 'bad' | 'plain'; hero?: boolean }) {
-  const color = hero ? 'text-white' : tone === 'good' ? 'text-emerald-700' : tone === 'bad' ? 'text-rose-700' : 'text-slate-800';
+  const bg = hero
+    ? 'from-[#4a98ad] to-[#2f7088]'
+    : tone === 'good' ? 'from-[#c6ebe1] to-[#98d4c9]' : tone === 'bad' ? 'from-[#f7d9de] to-[#ebb0ba]' : 'from-[#e8f0f7] to-[#cfdeea]';
+  const color = hero ? 'text-white' : tone === 'good' ? 'text-emerald-900' : tone === 'bad' ? 'text-rose-900' : 'text-slate-800';
   return (
-    <div className={`rounded-3xl p-5 border ${SHADOW} ${hero ? 'bg-gradient-to-b from-[#4a98ad] to-[#2f7088] border-transparent' : 'bg-white/80 backdrop-blur border-white'}`}>
-      <p className={`text-[11px] font-semibold uppercase tracking-wide ${hero ? 'text-white/80' : 'text-slate-500'}`}>{title}</p>
+    <div className={`rounded-[22px] p-5 bg-gradient-to-br ${bg} shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)]`}>
+      <p className={`text-[11px] font-semibold uppercase tracking-wide ${hero ? 'text-white/80' : 'text-slate-600'}`}>{title}</p>
       <p className={`text-xl font-extrabold mt-1 ${color}`}>{value}</p>
-      {sub && <p className={`text-xs mt-1 ${hero ? 'text-white/80' : 'text-slate-500'}`}>{sub}</p>}
+      {sub && <p className={`text-xs mt-1 ${hero ? 'text-white/80' : 'text-slate-600'}`}>{sub}</p>}
     </div>
   );
 }

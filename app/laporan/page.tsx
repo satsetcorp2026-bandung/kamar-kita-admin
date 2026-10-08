@@ -73,6 +73,14 @@ function fmtTime(iso: string) {
   return new Date(iso).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 }
 
+function tint(tone: string) {
+  if (tone.includes('amber')) return 'from-[#f9e6c6] to-[#efcd96]';
+  if (tone.includes('rose')) return 'from-[#f7d9de] to-[#ebb0ba]';
+  if (tone.includes('emerald')) return 'from-[#c6ebe1] to-[#98d4c9]';
+  if (tone.includes('blue')) return 'from-[#d9e8f4] to-[#b6d0e4]';
+  return 'from-[#e8edf4] to-[#cfd9e6]';
+}
+
 export default function LaporanPage() {
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
@@ -243,12 +251,12 @@ export default function LaporanPage() {
             <button
               key={c.key}
               onClick={() => setStatusFilter(c.key)}
-              className={`text-left rounded-3xl border p-5 bg-white/80 backdrop-blur transition shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)] ${
-                active ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-white hover:border-slate-200'
-              }`}
+              className={`text-left rounded-[22px] p-5 bg-gradient-to-br ${tint(c.tone)} transition shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)] ${
+              active ? 'ring-2 ring-[#2f7088]' : 'hover:brightness-105'
+            }`}
             >
-              <div className="text-xs font-semibold text-slate-500">{c.label}</div>
-              <div className={`mt-1.5 text-2xl font-extrabold tabular-nums ${c.tone}`}>{loading ? '-' : c.value}</div>
+              <div className="text-xs font-semibold text-slate-600">{c.label}</div>
+              <div className={`mt-1.5 text-2xl font-extrabold tabular-nums text-slate-800`}>{loading ? '-' : c.value}</div>
             </button>
           );
         })}
