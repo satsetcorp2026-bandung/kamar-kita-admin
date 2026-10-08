@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
-  Megaphone, 
   Plus, 
   Trash2, 
   CheckCircle2, 
@@ -241,7 +240,7 @@ export default function BannersPage() {
         throw new Error('Gagal mengirim ke server Expo.');
       }
 
-      alert(`Notifikasi berhasil disiarkan ke ${tokens.length} perangkat! 🚀`);
+      alert(`Notifikasi berhasil disiarkan ke ${tokens.length} perangkat!`);
       setNotifTitle('');
       setNotifBody('');
     } catch (err: unknown) {
@@ -253,16 +252,13 @@ export default function BannersPage() {
   };
 
   return (
-    <div className="space-y-5">
+    <div className="max-w-7xl mx-auto space-y-5">
       {/* Header Utama */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <Megaphone className="w-6 h-6 text-orange-600" />
-            Banner Promo & Notifikasi
-          </h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Atur slider promo beranda aplikasi dan kirim pesan siaran instan ke ponsel warga kos
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Banner dan Notifikasi</h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Atur slider promo beranda aplikasi dan kirim pesan siaran instan ke ponsel pengguna
           </p>
         </div>
 
@@ -271,7 +267,7 @@ export default function BannersPage() {
           <button
             onClick={() => setActiveTab('banners')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-              activeTab === 'banners' ? 'bg-white text-orange-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+              activeTab === 'banners' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
@@ -280,7 +276,7 @@ export default function BannersPage() {
           <button
             onClick={() => setActiveTab('broadcast')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-              activeTab === 'broadcast' ? 'bg-white text-orange-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+              activeTab === 'broadcast' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Bell className="w-3.5 h-3.5" />
@@ -298,7 +294,7 @@ export default function BannersPage() {
             </span>
             <button
               onClick={() => { resetBannerForm(); setIsBannerModalOpen(true); }}
-              className="flex items-center gap-1.5 bg-orange-600 hover:bg-orange-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-sm transition-all"
+              className="flex items-center gap-1.5 bg-gradient-to-br from-[#4a98ad] to-[#2f7088] text-white px-4 py-2 rounded-full text-xs font-bold shadow-[4px_6px_12px_rgba(36,76,96,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-105 transition-all"
             >
               <Plus className="w-4 h-4" />
               Tambah Banner Promo
@@ -308,7 +304,7 @@ export default function BannersPage() {
           {/* Grid List Banner */}
           {loading ? (
             <div className="py-12 text-center text-slate-500 flex items-center justify-center gap-2 text-xs">
-              <Loader2 className="w-4 h-4 animate-spin text-orange-500" /> Memuat banner promo...
+              <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> Memuat banner promo...
             </div>
           ) : banners.length === 0 ? (
             <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200 text-xs">
@@ -391,7 +387,7 @@ export default function BannersPage() {
           <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Bell className="w-4 h-4 text-orange-600" />
+                <Bell className="w-4 h-4 text-blue-600" />
                 Kirim Siaran Notifikasi (Push Notification)
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
@@ -408,7 +404,7 @@ export default function BannersPage() {
                     onClick={() => setNotifTarget('all')}
                     className={`py-2 px-3 rounded-lg border text-center font-medium transition-all ${
                       notifTarget === 'all' 
-                        ? 'bg-orange-50 border-orange-500 text-orange-700 font-bold' 
+                        ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' 
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -419,7 +415,7 @@ export default function BannersPage() {
                     onClick={() => setNotifTarget('users')}
                     className={`py-2 px-3 rounded-lg border text-center font-medium transition-all ${
                       notifTarget === 'users' 
-                        ? 'bg-orange-50 border-orange-500 text-orange-700 font-bold' 
+                        ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' 
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -430,7 +426,7 @@ export default function BannersPage() {
                     onClick={() => setNotifTarget('partners')}
                     className={`py-2 px-3 rounded-lg border text-center font-medium transition-all ${
                       notifTarget === 'partners' 
-                        ? 'bg-orange-50 border-orange-500 text-orange-700 font-bold' 
+                        ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' 
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -444,10 +440,10 @@ export default function BannersPage() {
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: Promo Spesial Kost Dekat Unpad! 🎉"
+                  placeholder="Contoh: Promo Spesial Kost Dekat Unpad"
                   value={notifTitle}
                   onChange={(e) => setNotifTitle(e.target.value)}
-                  className="w-full p-2.5 border rounded-lg focus:outline-orange-500 font-medium"
+                  className="w-full p-2.5 border rounded-lg focus:outline-blue-500 font-medium"
                 />
               </div>
 
@@ -459,7 +455,7 @@ export default function BannersPage() {
                   placeholder="Contoh: Dapatkan diskon sewa bulan pertama untuk 5 kosan pilihan di Jatinangor hari ini..."
                   value={notifBody}
                   onChange={(e) => setNotifBody(e.target.value)}
-                  className="w-full p-2.5 border rounded-lg focus:outline-orange-500 leading-relaxed"
+                  className="w-full p-2.5 border rounded-lg focus:outline-blue-500 leading-relaxed"
                 />
               </div>
 
@@ -467,7 +463,7 @@ export default function BannersPage() {
                 <button
                   type="submit"
                   disabled={sendingNotif}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold shadow-sm transition-all disabled:opacity-50"
+                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-br from-[#4a98ad] to-[#2f7088] text-white rounded-full font-bold shadow-[4px_6px_12px_rgba(36,76,96,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-105 transition-all disabled:opacity-50"
                 >
                   {sendingNotif ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   Siarkan Notifikasi Sekarang
@@ -485,7 +481,7 @@ export default function BannersPage() {
             <div className="w-full max-w-[280px] bg-white rounded-2xl border border-slate-300 p-3 shadow-md space-y-2">
               <div className="flex items-center justify-between pb-1 border-b border-slate-100">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-4 rounded bg-orange-500 flex items-center justify-center text-white text-[9px] font-bold">
+                  <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center text-white text-[9px] font-bold">
                     K
                   </div>
                   <span className="text-[10px] font-bold text-slate-800">Kamar Kita</span>
@@ -530,7 +526,7 @@ export default function BannersPage() {
                   placeholder="Contoh: Diskon Sewa Awal Semester"
                   value={bannerTitle}
                   onChange={(e) => setBannerTitle(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:outline-orange-500"
+                  className="w-full p-2 border rounded-lg focus:outline-blue-500"
                 />
               </div>
 
@@ -541,7 +537,7 @@ export default function BannersPage() {
                   placeholder="Contoh: Khusus kost putri area Caringin & Sayang"
                   value={bannerDesc}
                   onChange={(e) => setBannerDesc(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:outline-orange-500"
+                  className="w-full p-2 border rounded-lg focus:outline-blue-500"
                 />
               </div>
 
@@ -553,7 +549,7 @@ export default function BannersPage() {
                     placeholder="PROMO / INFO"
                     value={bannerTag}
                     onChange={(e) => setBannerTag(e.target.value)}
-                    className="w-full p-2 border rounded-lg focus:outline-orange-500 font-bold uppercase"
+                    className="w-full p-2 border rounded-lg focus:outline-blue-500 font-bold uppercase"
                   />
                 </div>
                 <div>
@@ -575,7 +571,7 @@ export default function BannersPage() {
                     min="1"
                     value={bannerOrder}
                     onChange={(e) => setBannerOrder(e.target.value)}
-                    className="w-full p-2 border rounded-lg focus:outline-orange-500"
+                    className="w-full p-2 border rounded-lg focus:outline-blue-500"
                   />
                 </div>
               </div>
@@ -583,11 +579,11 @@ export default function BannersPage() {
               {/* Upload Gambar Banner */}
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Gambar Banner (16:9 / 2:1) *</label>
-                <label className={`w-full border-2 border-dashed border-orange-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer bg-orange-50/40 hover:bg-orange-50 transition-all ${
+                <label className={`w-full border-2 border-dashed border-blue-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer bg-blue-50/40 hover:bg-blue-50 transition-all ${
                   uploadingImage ? 'opacity-50 pointer-events-none' : ''
                 }`}>
-                  <Upload className="w-5 h-5 text-orange-600" />
-                  <span className="text-xs font-bold text-orange-600">
+                  <Upload className="w-5 h-5 text-blue-600" />
+                  <span className="text-xs font-bold text-blue-600">
                     {uploadingImage ? 'Mengunggah gambar...' : '+ Pilih Banner Dari Laptop (Maks. 2MB)'}
                   </span>
                   <input
@@ -625,7 +621,7 @@ export default function BannersPage() {
                 <button
                   type="submit"
                   disabled={savingBanner || uploadingImage}
-                  className="flex items-center gap-1.5 px-4 py-1.5 bg-orange-600 text-white rounded-lg font-bold hover:bg-orange-700 disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
                 >
                   {savingBanner ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                   Terbitkan Banner

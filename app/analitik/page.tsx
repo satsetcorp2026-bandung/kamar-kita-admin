@@ -246,7 +246,7 @@ function LineChart({
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img">
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="#e2e8f0" />
+            <line x1={pad.l} x2={W - pad.r} y1={y(t)} y2={y(t)} stroke="rgba(30,43,63,0.12)" />
             <text x={pad.l - 6} y={y(t) + 3} textAnchor="end" fontSize="10" fill="#94a3b8">
               {t}
             </text>
@@ -291,7 +291,7 @@ function BarChart({ labels, values, color }: { labels: string[]; values: number[
         const yy = pad.t + (1 - t) * (H - pad.t - pad.b);
         return (
           <g key={t}>
-            <line x1={pad.l} x2={W - pad.r} y1={yy} y2={yy} stroke="#e2e8f0" />
+            <line x1={pad.l} x2={W - pad.r} y1={yy} y2={yy} stroke="rgba(30,43,63,0.12)" />
             <text x={pad.l - 6} y={yy + 3} textAnchor="end" fontSize="10" fill="#94a3b8">
               {Math.round(max * t)}
             </text>
@@ -320,9 +320,9 @@ const DOW_LABEL: Record<number, string> = { 0: 'Min', 1: 'Sen', 2: 'Sel', 3: 'Ra
 
 function Card({ title, hint, children, className = '' }: { title: string; hint?: string; children: React.ReactNode; className?: string }) {
   return (
-    <section className={`bg-white border border-slate-200 rounded-2xl shadow-sm p-5 break-inside-avoid ${className}`}>
+    <section className={`rounded-[22px] border border-white/70 bg-gradient-to-br from-white/60 to-white/30 shadow-[8px_10px_22px_rgba(48,66,92,0.16),-6px_-6px_16px_rgba(255,255,255,0.6)] p-5 break-inside-avoid ${className}`}>
       <div className="mb-4">
-        <h3 className="text-sm font-bold text-slate-900">{title}</h3>
+        <h3 className="text-sm font-extrabold text-slate-800">{title}</h3>
         {hint && <p className="text-xs text-slate-500 mt-0.5">{hint}</p>}
       </div>
       {children}
@@ -439,7 +439,7 @@ export default function AnalitikPage() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">Laporan Investor</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Laporan Investor</h2>
           <p className="text-sm text-slate-500 mt-1">
             Pertumbuhan, keaktifan, retensi, transaksi, dan sebaran wilayah. Akun uji coba dan admin tidak dihitung.
           </p>
@@ -451,7 +451,7 @@ export default function AnalitikPage() {
               setLoading(true);
               setDays(Number(e.target.value));
             }}
-            className="text-xs font-semibold rounded-lg border border-slate-200 bg-white px-3 py-2 text-slate-700"
+            className="text-xs font-semibold rounded-full border border-white/80 bg-white/70 px-3.5 py-2 text-slate-700 shadow-sm"
           >
             <option value={7}>7 hari</option>
             <option value={30}>30 hari</option>
@@ -463,19 +463,19 @@ export default function AnalitikPage() {
               setTestLoading(true);
               setTestOpen(true);
             }}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-white/80 bg-white/70 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white"
           >
             <FlaskConical className="w-3.5 h-3.5" /> Akun uji coba ({o?.test_accounts ?? 0})
           </button>
           <button
             onClick={exportCsv}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 px-3.5 py-2 rounded-full border border-white/80 bg-white/70 text-xs font-semibold text-slate-700 shadow-sm hover:bg-white"
           >
             <Download className="w-3.5 h-3.5" /> Ekspor CSV
           </button>
           <button
             onClick={() => window.print()}
-            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-900 text-white text-xs font-semibold hover:bg-slate-800"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-br from-[#4a98ad] to-[#2f7088] text-white text-xs font-bold shadow-[4px_6px_12px_rgba(36,76,96,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-105"
           >
             <Printer className="w-3.5 h-3.5" /> Cetak / PDF
           </button>
@@ -509,20 +509,23 @@ export default function AnalitikPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { label: 'Total pengguna', value: nf.format(o.total_users), hint: 'Akun terdaftar', icon: Users },
               { label: `Pendaftar baru (${days} hari)`, value: nf.format(o.new_users), hint: 'Akun baru di periode ini', icon: UserPlus },
               { label: 'Aktif bulanan (MAU)', value: nf.format(o.mau), hint: `Mingguan ${nf.format(o.wau)}, harian ${nf.format(o.dau)}`, icon: Activity },
               { label: 'Rasio harian / bulanan', value: stickiness, hint: 'Seberapa sering pengguna kembali', icon: Activity },
-            ].map((k) => (
-              <div key={k.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            ].map((k, i) => (
+              <div
+                key={k.label}
+                className={`rounded-[20px] p-4 bg-gradient-to-br ${['from-[#8fd0c8] to-[#62aea8]', 'from-[#d0dae6] to-[#b3c3d4]', 'from-[#eaf3f9] to-[#cfe2ee]', 'from-[#a9a4d4] to-[#8782bb]'][i % 4]} shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)]`}
+              >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-slate-500">{k.label}</span>
-                  <k.icon className="w-4 h-4 text-slate-400" />
+                  <span className="text-[13px] font-bold text-slate-700">{k.label}</span>
+                  <k.icon className="w-4 h-4 text-slate-600" />
                 </div>
-                <div className="mt-2 text-2xl font-extrabold tabular-nums text-slate-900">{k.value}</div>
-                <div className="text-[11px] text-slate-400 mt-0.5">{k.hint}</div>
+                <div className="mt-2 text-3xl font-extrabold tabular-nums text-slate-900">{k.value}</div>
+                <div className="text-xs text-slate-600 mt-0.5">{k.hint}</div>
               </div>
             ))}
           </div>
