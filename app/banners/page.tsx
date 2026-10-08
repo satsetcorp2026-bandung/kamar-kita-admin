@@ -206,28 +206,10 @@ export default function BannersPage() {
 
     setSendingNotif(true);
     try {
-      let tokens: string[] = [];
-
-      if (notifTarget === 'partners') {
-        // Ambil token push khusus mitra Tolongin
-        const { data: partnersData } = await supabase
-          .from('tolongin_partners')
-          .select('expo_push_token')
-          .not('expo_push_token', 'is', null);
-
-        tokens = (partnersData || [])
-          .map(p => p.expo_push_token)
-          .filter(Boolean);
-      } else {
-        // Ambil seluruh token dari user_push_tokens
-        const { data: usersData } = await supabase
-          .from('user_push_tokens')
-          .select('push_token');
-
-        tokens = (usersData || [])
-          .map(u => u.push_token)
-          .filter(Boolean);
-      }
+      // Daftar token diambil lewat fungsi server khusus admin
+      const { data: tokenData, error: tokenErr } = await supabase.rpc('admin_push_tokens', { p_target: notifTarget });
+      if (tokenErr) throw tokenErr;
+      const tokens: string[] = (tokenData as string[] | null) ?? [];
 
       if (tokens.length === 0) {
         alert('Tidak ada token perangkat yang aktif terdaftar untuk target ini.');

@@ -17,6 +17,8 @@ import {
   Filter,
   Edit,
   Save,
+  Wallet,
+  Award,
   MessageCircle,
   Star,
   ThumbsUp,
@@ -72,6 +74,8 @@ interface TolonginPartner {
   total_likes: number;
   avg_rating: number;
   avg_response_minutes: number;
+  subscription_until: string | null;
+  badge_until: string | null;
 }
 
 export default function TolonginPage() {
@@ -80,13 +84,13 @@ export default function TolonginPage() {
   
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<'pending' | 'active' | 'expiring' | 'all'>('all');
   const [selectedCategory, setSelectedCategory] = useState('Semua Layanan');
   const [onlySosVolunteer, setOnlySosVolunteer] = useState(false);
 
   // Modal Detail & Review State
   const [selectedPartner, setSelectedPartner] = useState<TolonginPartner | null>(null);
-  const [detailTab, setDetailTab] = useState<'performance' | 'reviews' | 'docs'>('performance');
+  const [detailTab, setDetailTab] = useState<'performance' | 'billing' | 'reviews' | 'docs'>('performance');
   const [partnerReviews, setPartnerReviews] = useState<TolonginReview[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
 
@@ -100,19 +104,22 @@ export default function TolonginPage() {
   const [simSignedUrl, setSimSignedUrl] = useState<string | null>(null);
   const [loadingDoc, setLoadingDoc] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [billingBusy, setBillingBusy] = useState(false);
+  // Waktu saat halaman dibuka (aturan React: jangan panggil Date.now() langsung saat render)
+  const [nowMs] = useState(() => Date.now());
 
   useEffect(() => {
     let isMounted = true;
 
     async function loadData() {
-      const { data, error } = await supabase
-        .from('tolongin_partners')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Data lengkap (telepon, KTP, SIM) hanya lewat fungsi server khusus admin
+      const { data, error } = await supabase.rpc('admin_tolongin_partners');
 
       if (isMounted) {
         if (!error && data) {
           setPartners(data as TolonginPartner[]);
+        } else if (error) {
+          alert(`Gagal memuat data Sobat: ${error.message}`);
         }
         setLoading(false);
       }
@@ -261,12 +268,73 @@ export default function TolonginPage() {
     }
   }
 
+  // ---- Langganan & Lencana ----
+  const MIN_BADGE_RATING = 4.5;
+  const MIN_BADGE_ORDERS = 5;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  function isFuture(iso: string | null | undefined) {
+    return !!iso && new Date(iso).getTime() > nowMs;
+  }
+  function daysLeft(iso: string | null | undefined) {
+    if (!iso) return null;
+    return Math.ceil((new Date(iso).getTime() - nowMs) / DAY_MS);
+  }
+  function fmtDate(iso: string | null | undefined) {
+    if (!iso) return '-';
+    return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+  function isExpiringSoon(p: TolonginPartner) {
+    const isOn = p.status === 'active' || p.status === 'approved';
+    if (!isOn) return false;
+    const d = daysLeft(p.subscription_until);
+    return d === null || d <= 7;
+  }
+  function badgeQualityOk(p: TolonginPartner) {
+    return Number(p.avg_rating || 0) >= MIN_BADGE_RATING && Number(p.completed_orders || 0) >= MIN_BADGE_ORDERS;
+  }
+
+  function patchPartner(id: string, patch: Partial<TolonginPartner>) {
+    setPartners((prev) => prev.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+    setSelectedPartner((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
+  }
+
+  async function addSubscription(p: TolonginPartner, months: number) {
+    const price = months * 20000;
+    if (!confirm(`Aktifkan langganan ${months} bulan untuk ${p.name}?\nPastikan Rp${price.toLocaleString('id-ID')} sudah diterima.`)) return;
+    setBillingBusy(true);
+    const { data, error } = await supabase.rpc('admin_set_tolongin_subscription', {
+      p_partner_id: p.id,
+      p_months: months,
+    });
+    if (error) alert(`Gagal: ${error.message}`);
+    else patchPartner(p.id, { subscription_until: data as string });
+    setBillingBusy(false);
+  }
+
+  async function addBadge(p: TolonginPartner, months: number) {
+    const msg = months === 0
+      ? `Cabut lencana Terbaik dari ${p.name}?`
+      : `Aktifkan lencana Terbaik ${months} bulan untuk ${p.name}?\nPastikan Rp${(months * 10000).toLocaleString('id-ID')} sudah diterima.`;
+    if (!confirm(msg)) return;
+    setBillingBusy(true);
+    const { data, error } = await supabase.rpc('admin_set_tolongin_badge', {
+      p_partner_id: p.id,
+      p_months: months,
+    });
+    if (error) alert(`Gagal: ${error.message}`);
+    else patchPartner(p.id, { badge_until: (data as string | null) ?? null });
+    setBillingBusy(false);
+  }
+
   const pendingCount = partners.filter(p => p.status === 'pending').length;
+  const expiringCount = partners.filter(isExpiringSoon).length;
   const activeCount = partners.filter(p => p.status === 'active' || p.status === 'approved').length;
 
   const filteredPartners = partners.filter(p => {
     if (activeTab === 'pending' && p.status !== 'pending') return false;
     if (activeTab === 'active' && p.status !== 'active' && p.status !== 'approved') return false;
+    if (activeTab === 'expiring' && !isExpiringSoon(p)) return false;
 
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -321,6 +389,14 @@ export default function TolonginPage() {
             }`}
           >
             Butuh Verifikasi ({pendingCount})
+          </button>
+          <button
+            onClick={() => setActiveTab('expiring')}
+            className={`px-3 py-1.5 rounded-lg transition-all ${
+              activeTab === 'expiring' ? 'bg-white text-rose-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Langganan Habis ({expiringCount})
           </button>
         </div>
       </div>
@@ -399,6 +475,7 @@ export default function TolonginPage() {
                   <th className="py-3 px-4 text-center">Bantuan Selesai</th>
                   <th className="py-3 px-4 text-center">Rating</th>
                   <th className="py-3 px-4 text-center">Status</th>
+                  <th className="py-3 px-4 text-center">Langganan</th>
                   <th className="py-3 px-4 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -488,6 +565,30 @@ export default function TolonginPage() {
                         </span>
                       </td>
 
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        {isFuture(p.subscription_until) ? (
+                          <div>
+                            <span className={`inline-block text-[11px] px-2 py-0.5 rounded-full font-bold border ${
+                              (daysLeft(p.subscription_until) ?? 0) <= 7
+                                ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}>
+                              s/d {fmtDate(p.subscription_until)}
+                            </span>
+                            <div className="text-[10px] text-slate-400 mt-0.5">{daysLeft(p.subscription_until)} hari lagi</div>
+                          </div>
+                        ) : (
+                          <span className="inline-block text-[11px] px-2 py-0.5 rounded-full font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            {p.subscription_until ? 'Habis' : 'Belum berlangganan'}
+                          </span>
+                        )}
+                        {isFuture(p.badge_until) && (
+                          <div className="text-[10px] text-orange-600 font-semibold mt-1 flex items-center justify-center gap-1">
+                            <Award className="w-3 h-3" /> Terbaik s/d {fmtDate(p.badge_until)}
+                          </div>
+                        )}
+                      </td>
+
                       <td className="py-3 px-4 text-right whitespace-nowrap">
                         <div className="inline-flex items-center gap-1.5">
                           <a
@@ -575,6 +676,14 @@ export default function TolonginPage() {
                 }`}
               >
                 Kinerja & Rekam Jejak
+              </button>
+              <button
+                onClick={() => setDetailTab('billing')}
+                className={`py-2.5 px-3 border-b-2 transition-all ${
+                  detailTab === 'billing' ? 'border-orange-600 text-orange-600 font-bold' : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Langganan & Lencana
               </button>
               <button
                 onClick={() => setDetailTab('reviews')}
@@ -667,6 +776,86 @@ export default function TolonginPage() {
                     <div className="p-3 bg-amber-50/50 border border-amber-200/70 rounded-xl text-amber-900 text-[11px]">
                       <span className="font-bold block mb-0.5">Bio Pengalaman Mitra:</span>
                       {selectedPartner.bio}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB: LANGGANAN & LENCANA */}
+              {detailTab === 'billing' && (
+                <div className="space-y-4">
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase">
+                      <Wallet className="w-4 h-4 text-orange-600" /> Langganan (Rp20.000 / bulan)
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Berlaku sampai:</span>
+                      <span className={`font-bold ${isFuture(selectedPartner.subscription_until) ? 'text-emerald-700' : 'text-rose-600'}`}>
+                        {selectedPartner.subscription_until ? fmtDate(selectedPartner.subscription_until) : 'Belum berlangganan'}
+                        {isFuture(selectedPartner.subscription_until) && ` (${daysLeft(selectedPartner.subscription_until)} hari lagi)`}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Tanpa langganan aktif, Sobat tidak tampil di aplikasi dan tidak bisa menerima obrolan baru. Perpanjangan dihitung dari tanggal berakhir (kalau masih aktif) atau dari hari ini.
+                    </p>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => addSubscription(selectedPartner, 1)}
+                        disabled={billingBusy}
+                        className="flex-1 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        + 1 bulan (Rp20.000)
+                      </button>
+                      <button
+                        onClick={() => addSubscription(selectedPartner, 3)}
+                        disabled={billingBusy}
+                        className="flex-1 py-2 rounded-lg bg-white text-emerald-700 border border-emerald-300 font-bold hover:bg-emerald-50 disabled:opacity-50"
+                      >
+                        + 3 bulan (Rp60.000)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-800 text-[11px] uppercase">
+                      <Award className="w-4 h-4 text-orange-600" /> Lencana Terbaik (Rp10.000 / bulan)
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Dibayar sampai:</span>
+                      <span className="font-bold text-slate-800">
+                        {isFuture(selectedPartner.badge_until) ? fmtDate(selectedPartner.badge_until) : 'Tidak aktif'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500">Syarat kualitas (rating min 4,5 dan min 5 bantuan selesai):</span>
+                      <span className={`font-bold ${badgeQualityOk(selectedPartner) ? 'text-emerald-700' : 'text-amber-600'}`}>
+                        {badgeQualityOk(selectedPartner) ? 'Terpenuhi' : 'Belum'} ({Number(selectedPartner.avg_rating || 0).toFixed(1)} / {selectedPartner.completed_orders || 0} bantuan)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500">
+                      Lencana baru tampil di aplikasi jika sudah dibayar DAN syarat kualitas terpenuhi. Kalau rating turun, lencana otomatis tersembunyi.
+                    </p>
+                    <div className="flex gap-2 pt-1">
+                      <button
+                        onClick={() => addBadge(selectedPartner, 1)}
+                        disabled={billingBusy}
+                        className="flex-1 py-2 rounded-lg bg-orange-600 text-white font-bold hover:bg-orange-700 disabled:opacity-50"
+                      >
+                        + 1 bulan (Rp10.000)
+                      </button>
+                      <button
+                        onClick={() => addBadge(selectedPartner, 0)}
+                        disabled={billingBusy || !isFuture(selectedPartner.badge_until)}
+                        className="flex-1 py-2 rounded-lg bg-white text-rose-600 border border-rose-200 font-bold hover:bg-rose-50 disabled:opacity-40"
+                      >
+                        Cabut lencana
+                      </button>
+                    </div>
+                  </div>
+
+                  {selectedPartner.status !== 'active' && selectedPartner.status !== 'approved' && (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-[11px]">
+                      Sobat ini belum berstatus aktif. Setujui dulu lewat tombol &quot;Setujui &amp; Aktifkan&quot; di bawah, baru aktifkan langganan.
                     </div>
                   )}
                 </div>
