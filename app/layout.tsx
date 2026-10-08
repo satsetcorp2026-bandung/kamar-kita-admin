@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Wallet,
   MapPin,
+  SlidersHorizontal,
   Search,
   LogOut,
   Loader2,
@@ -48,6 +49,7 @@ const navGroups: NavGroup[] = [
       { name: 'Driver Pim', href: '/drivers', icon: Bike, badgeKey: 'drivers' },
       { name: 'Pesanan dan Trip', href: '/orders', icon: Route },
       { name: 'Peta Driver Langsung', href: '/peta-driver', icon: MapPin },
+      { name: 'Pengaturan Tarif', href: '/pengaturan', icon: SlidersHorizontal },
     ],
   },
   {
