@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Wallet,
   MapPin,
+  Search,
   LogOut,
   Loader2,
   Menu,
@@ -75,11 +76,13 @@ const navGroups: NavGroup[] = [
 
 const allItems = navGroups.flatMap((g) => g.items);
 
-function titleFor(pathname: string) {
-  const exact = allItems.find((i) => i.href === pathname);
-  if (exact) return exact.name;
-  const prefix = allItems.find((i) => i.href !== '/' && pathname.startsWith(i.href + '/'));
-  return prefix ? prefix.name : 'Konsol Admin';
+function crumbFor(pathname: string): { group: string; name: string } {
+  for (const g of navGroups) {
+    for (const i of g.items) {
+      if (i.href === pathname || (i.href !== '/' && pathname.startsWith(i.href + '/'))) return { group: g.label, name: i.name };
+    }
+  }
+  return { group: 'Konsol Admin', name: 'Halaman' };
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -94,6 +97,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [openSos, setOpenSos] = useState(0);
   const [metaTick, setMetaTick] = useState(0);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchText, setSearchText] = useState('');
 
   const isLogin = pathname === '/login';
 
@@ -180,6 +185,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     return () => clearInterval(t);
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+      if (e.key === '/' && !typing) {
+        e.preventDefault();
+        setSearchText('');
+        setSearchOpen(true);
+      } else if (e.key === 'Escape') {
+        setSearchOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const searchResults = allItems.filter((i) => i.name.toLowerCase().includes(searchText.trim().toLowerCase())).slice(0, 8);
+  const goTo = (href: string) => {
+    setSearchOpen(false);
+    setDrawerOpen(false);
+    router.push(href);
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     router.replace('/login');
@@ -211,7 +239,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
           <h1 className="mt-4 text-lg font-bold text-slate-900">Akun ini bukan admin</h1>
           <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">
-            {email} belum terdaftar sebagai admin Kamar Kita. Hubungi pemilik sistem untuk diberi akses.
+            {email} belum terdaftar sebagai admin PimPim. Hubungi pemilik sistem untuk diberi akses.
           </p>
           <button
             onClick={handleLogout}
@@ -224,24 +252,35 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     );
   } else {
     const sidebar = (
-      <div className="flex flex-col h-full">
-        <div className="px-5 h-16 flex items-center gap-3 border-b border-white/5 shrink-0">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-extrabold shadow-lg shadow-blue-900/40">
-            K
+      <div className="flex flex-col h-full rounded-[28px] bg-gradient-to-b from-[#3a5272] to-[#22344f] text-white shadow-[10px_12px_26px_rgba(30,45,70,0.35),inset_0_1px_0_rgba(255,255,255,0.18)]">
+        <div className="px-5 pt-5 pb-3 flex items-center gap-3 shrink-0">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#6cb3c6] to-[#2f7088] flex items-center justify-center text-white text-xl font-extrabold shadow-[4px_6px_12px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.4)]">
+            P
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-bold text-white tracking-tight">Kamar Kita</div>
-            <div className="text-[11px] text-slate-400">Konsol Admin</div>
+            <div className="text-[15px] font-extrabold tracking-tight">PimPim</div>
+            <div className="text-[11.5px] text-[#a9bdd6]">Konsol Admin</div>
           </div>
         </div>
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-5">
+        <div className="px-4 pb-2 shrink-0">
+          <button
+            onClick={() => { setSearchText(''); setSearchOpen(true); }}
+            className="w-full flex items-center gap-2 rounded-xl bg-black/15 border border-white/10 px-3 py-2 text-[12.5px] text-[#a9bdd6] hover:bg-black/25 transition"
+          >
+            <Search className="w-4 h-4" />
+            <span className="flex-1 text-left">Cari halaman</span>
+            <span className="border border-white/20 rounded px-1.5 text-[11px]">/</span>
+          </button>
+        </div>
+
+        <nav className="flex-1 overflow-y-auto px-3 py-2 space-y-4">
           {navGroups.map((group) => (
             <div key={group.label}>
-              <div className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-500">
+              <div className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#7f95b5]">
                 {group.label}
               </div>
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 {group.items.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.href === '/' ? pathname === '/' : pathname === item.href || pathname.startsWith(item.href + '/');
@@ -251,17 +290,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                       key={item.href}
                       href={item.href}
                       onClick={() => setDrawerOpen(false)}
-                      className={`group relative flex items-center gap-3 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
+                      className={`group flex items-center gap-3 px-3 py-2.5 rounded-2xl text-[13px] font-semibold transition ${
                         isActive
-                          ? 'bg-blue-500/15 text-white'
-                          : 'text-slate-400 hover:bg-white/5 hover:text-slate-100'
+                          ? 'bg-gradient-to-br from-[#eef4f9] to-[#c4d4e2] text-[#1e3a52] shadow-[4px_6px_12px_rgba(0,0,0,0.28),inset_0_1px_0_#fff]'
+                          : 'text-[#c4d3e6] hover:bg-white/10 hover:text-white'
                       }`}
                     >
-                      {isActive && <span className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r bg-blue-400" />}
-                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-blue-300' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                      <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-[#2d6a86]' : 'text-[#8fa6c4] group-hover:text-white'}`} />
                       <span className="flex-1 truncate">{item.name}</span>
                       {badge > 0 && (
-                        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-bold flex items-center justify-center">
+                        <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-rose-400 text-rose-950 text-[11px] font-extrabold flex items-center justify-center">
                           {badge > 99 ? '99+' : badge}
                         </span>
                       )}
@@ -273,19 +311,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           ))}
         </nav>
 
-        <div className="p-3 border-t border-white/5 shrink-0">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-8 h-8 rounded-full bg-slate-700 text-slate-100 text-xs font-bold flex items-center justify-center shrink-0">
+        <div className="p-3 shrink-0">
+          <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl bg-black/15 border border-white/10">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6cb3c6] to-[#2f7088] text-white text-xs font-bold flex items-center justify-center shrink-0">
               {initial}
             </div>
             <div className="min-w-0 flex-1">
-              <div className="text-xs font-semibold text-slate-200 truncate">{email || 'Admin'}</div>
-              <div className="text-[11px] text-slate-500">Administrator</div>
+              <div className="text-xs font-semibold text-white truncate">{email || 'Admin'}</div>
+              <div className="text-[11px] text-[#a9bdd6]">Administrator</div>
             </div>
             <button
               onClick={handleLogout}
               title="Keluar"
-              className="p-2 rounded-lg text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 transition"
+              className="p-2 rounded-lg text-[#a9bdd6] hover:text-rose-300 hover:bg-rose-500/10 transition"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -297,7 +335,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     content = (
       <div className="min-h-screen flex">
         {/* Sidebar desktop */}
-        <aside className="hidden lg:block print:!hidden w-64 shrink-0 bg-slate-950 border-r border-white/5 sticky top-0 h-screen">
+        <aside className="hidden lg:block print:!hidden w-[272px] shrink-0 p-3 sticky top-0 h-screen">
           {sidebar}
         </aside>
 
@@ -305,10 +343,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {drawerOpen && (
           <div className="lg:hidden fixed inset-0 z-50 flex">
             <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={() => setDrawerOpen(false)} />
-            <aside className="relative w-72 max-w-[85%] bg-slate-950 h-full shadow-2xl">
+            <aside className="relative w-72 max-w-[85%] h-full p-3">
               <button
                 onClick={() => setDrawerOpen(false)}
-                className="absolute top-4 right-3 p-1.5 rounded-lg text-slate-400 hover:bg-white/10"
+                className="absolute top-6 right-6 z-10 p-1.5 rounded-lg text-slate-300 hover:bg-white/10"
                 aria-label="Tutup menu"
               >
                 <X className="w-4 h-4" />
@@ -319,32 +357,62 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         )}
 
         <div className="flex-1 min-w-0 flex flex-col">
-          <header className="print:hidden sticky top-0 z-30 h-16 bg-white/85 backdrop-blur border-b border-slate-200 px-4 sm:px-6 lg:px-8 flex items-center gap-3">
+          <header className="print:hidden sticky top-0 z-30 h-14 bg-[#eef1f8]/85 backdrop-blur px-4 sm:px-6 lg:px-8 flex items-center gap-3">
             <button
               onClick={() => setDrawerOpen(true)}
-              className="lg:hidden p-2 -ml-2 rounded-lg text-slate-600 hover:bg-slate-100"
+              className="lg:hidden p-2 -ml-2 rounded-lg text-slate-600 hover:bg-white"
               aria-label="Buka menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="min-w-0">
-              <div className="text-[11px] text-slate-400 font-medium">Konsol Admin</div>
-              <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight truncate -mt-0.5">
-                {titleFor(pathname)}
-              </h1>
+            <div className="min-w-0 text-[13px] text-slate-500 truncate">
+              {crumbFor(pathname).group} <span className="text-slate-300 px-1">/</span>
+              <span className="text-slate-900 font-semibold">{crumbFor(pathname).name}</span>
             </div>
             <div className="ml-auto flex items-center gap-3">
               <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 Production
               </span>
-              <div className="w-8 h-8 rounded-full bg-slate-900 text-white text-xs font-bold flex items-center justify-center">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#6cb3c6] to-[#2f7088] text-white text-xs font-bold flex items-center justify-center shadow-md">
                 {initial}
               </div>
             </div>
           </header>
 
-          <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
+          <main className="flex-1 px-4 pb-8 pt-2 sm:px-6 lg:px-8">{children}</main>
+
+          {searchOpen && (
+            <div className="print:hidden fixed inset-0 z-[60] flex items-start justify-center pt-24 px-4">
+              <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSearchOpen(false)} />
+              <div className="relative w-full max-w-md rounded-2xl bg-white shadow-2xl overflow-hidden">
+                <div className="flex items-center gap-2 px-4 border-b border-slate-100">
+                  <Search className="w-4 h-4 text-slate-400" />
+                  <input
+                    autoFocus
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && searchResults[0]) goTo(searchResults[0].href); }}
+                    placeholder="Cari halaman, misalnya keuangan"
+                    className="flex-1 py-3.5 text-sm outline-none"
+                  />
+                </div>
+                <ul className="max-h-72 overflow-y-auto py-1">
+                  {searchResults.length === 0 && <li className="px-4 py-3 text-sm text-slate-500">Halaman tidak ditemukan.</li>}
+                  {searchResults.map((i) => {
+                    const Icon = i.icon;
+                    return (
+                      <li key={i.href}>
+                        <button onClick={() => goTo(i.href)} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 text-left">
+                          <Icon className="w-4 h-4 text-slate-400" />{i.name}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -352,7 +420,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
   return (
     <html lang="id">
-      <body className={isLogin ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900 antialiased'}>
+      <body className={isLogin ? 'bg-slate-950 text-slate-100' : 'bg-[#eef1f8] text-slate-900 antialiased'}>
         {content}
       </body>
     </html>
