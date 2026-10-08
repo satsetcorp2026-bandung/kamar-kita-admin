@@ -24,6 +24,7 @@ import {
   SlidersHorizontal,
   Gauge,
   UserCog,
+  Users,
   History,
   Search,
   LogOut,
@@ -43,6 +44,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Ringkasan', href: '/', icon: LayoutDashboard },
       { name: 'Laporan Pengguna', href: '/laporan', icon: Flag, badgeKey: 'reports' },
+      { name: 'Pengguna', href: '/pengguna', icon: Users },
       { name: 'Laporan Investor', href: '/analitik', icon: TrendingUp, roles: ['owner'] },
       { name: 'Keuangan', href: '/keuangan', icon: Wallet, roles: ['owner'] },
       { name: 'Biaya Peta dan AI', href: '/biaya', icon: Gauge, roles: ['owner'] },
@@ -64,7 +66,6 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Hunian (Kost & Sewa)', href: '/properties', icon: Building2, roles: ['owner', 'admin'] },
       { name: 'Sobat Tolongin', href: '/tolongin', icon: HandHeart, roles: ['owner', 'admin'] },
-      { name: 'Jual Beli Kost', href: '/kos-sales', icon: Building2, roles: ['owner', 'admin'] },
       { name: 'Preloved', href: '/preloved', icon: ShoppingBag, roles: ['owner', 'admin'] },
       { name: 'Cleaning Service', href: '/cleaning', icon: Sparkles, roles: ['owner', 'admin'] },
       { name: 'Jasa Angkut', href: '/angkut', icon: Truck, roles: ['owner', 'admin'] },
