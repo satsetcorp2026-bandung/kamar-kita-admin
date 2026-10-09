@@ -117,11 +117,17 @@ export default function LaundryPage() {
     });
   };
 
+  // Catatan Aktivitas: dicoba, tapi tidak boleh menggagalkan aksi utama
+  const logAct = async (action: string, id: string | number, nm: string, extra?: Record<string, unknown>) => {
+    try { await supabase.rpc('admin_log_laundry', { p_action: action, p_id: String(id), p_name: nm, p_extra: extra ?? null }); } catch { /* abaikan */ }
+  };
+
   const toggleField = async (i: Laundry, field: 'is_active' | 'is_popular') => {
     setBusyId(i.id);
     const next = field === 'is_active' ? i.is_active === false : !i.is_popular;
     const { error: e } = await supabase.from('services_listings').update({ [field]: next }).eq('id', i.id);
     if (e) alert(e.message);
+    else await logAct(field === 'is_active' ? 'laundry_toggle' : 'laundry_popular', i.id, i.name, { value: next });
     await load();
     setBusyId(null);
   };
@@ -131,6 +137,7 @@ export default function LaundryPage() {
     setBusyId(i.id);
     const { error: e } = await supabase.from('services_listings').delete().eq('id', i.id);
     if (e) alert(e.message);
+    else await logAct('laundry_delete', i.id, i.name);
     await load();
     setBusyId(null);
   };
@@ -207,11 +214,18 @@ export default function LaundryPage() {
       is_popular: form.is_popular,
       is_active: form.is_active,
     };
-    const { error: er } = form.id
-      ? await supabase.from('services_listings').update(payload).eq('id', form.id)
-      : await supabase.from('services_listings').insert([payload]);
+    let er: { message: string } | null = null;
+    let savedId: number | undefined = form.id ?? undefined;
+    if (form.id) {
+      er = (await supabase.from('services_listings').update(payload).eq('id', form.id)).error;
+    } else {
+      const r = await supabase.from('services_listings').insert([payload]).select('id').single();
+      er = r.error;
+      savedId = r.data?.id as number | undefined;
+    }
     setSaving(false);
     if (er) { alert(er.message); return; }
+    await logAct(form.id ? 'laundry_update' : 'laundry_create', savedId ?? '-', name);
     setForm(null);
     await load();
   };

@@ -74,6 +74,11 @@ function describe(r: Row): { label: string; tone: string; who: string; info: str
   if (a === 'ad_delete') return { label: 'Iklan dihapus', tone: red, who: str(d.title), info: '' };
   if (a === 'ads_reorder') return { label: 'Urutan iklan diubah', tone: slate, who: '-', info: `${str(d.count)} iklan` };
   if (a === 'ads_max') return { label: 'Batas tayang iklan diubah', tone: blue, who: '-', info: `Menjadi ${str(d.max)} slot` };
+  if (a === 'laundry_create') return { label: 'Laundry ditambahkan', tone: green, who: str(d.name), info: '' };
+  if (a === 'laundry_update') return { label: 'Laundry diubah', tone: blue, who: str(d.name), info: '' };
+  if (a === 'laundry_toggle') return { label: d.value ? 'Laundry diaktifkan' : 'Laundry dinonaktifkan', tone: d.value ? green : amber, who: str(d.name), info: '' };
+  if (a === 'laundry_popular') return { label: d.value ? 'Laundry ditandai populer' : 'Tanda populer dicabut', tone: slate, who: str(d.name), info: '' };
+  if (a === 'laundry_delete') return { label: 'Laundry dihapus', tone: red, who: str(d.name), info: '' };
   if (a === 'history_export') return { label: 'Dokumen riwayat diekspor (PDF)', tone: slate, who: name, info: '' };
   if (a === 'driver_unban') return { label: 'Blokir permanen driver dibuka', tone: amber, who: name, info: `Alasan buka: ${str(d.note)}` };
   if (a === 'driver_status_pending') return { label: 'Driver dikembalikan ke menunggu', tone: amber, who: name, info: '' };
