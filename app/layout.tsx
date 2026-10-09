@@ -33,6 +33,7 @@ import {
   X,
   Lock,
   Megaphone,
+  Shirt,
 } from 'lucide-react';
 
 type Role = 'owner' | 'admin' | 'cs';
@@ -67,6 +68,7 @@ const navGroups: NavGroup[] = [
     items: [
       { name: 'Hunian (Kost & Sewa)', href: '/properties', icon: Building2, roles: ['owner', 'admin'] },
       { name: 'Sobat Tolongin', href: '/tolongin', icon: HandHeart, roles: ['owner', 'admin'] },
+      { name: 'Laundry', href: '/laundry', icon: Shirt, roles: ['owner', 'admin'] },
       { name: 'Preloved', href: '/preloved', icon: ShoppingBag, roles: ['owner', 'admin'] },
       { name: 'Cleaning Service', href: '/cleaning', icon: Sparkles, roles: ['owner', 'admin'] },
       { name: 'Jasa Angkut', href: '/angkut', icon: Truck, roles: ['owner', 'admin'] },
