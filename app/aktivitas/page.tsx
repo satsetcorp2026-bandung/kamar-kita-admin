@@ -69,6 +69,11 @@ function describe(r: Row): { label: string; tone: string; who: string; info: str
   if (a === 'driver_status_approved') return { label: 'Driver diaktifkan', tone: green, who: name, info: '' };
   if (a === 'driver_status_rejected') return { label: 'Driver ditolak atau dinonaktifkan', tone: red, who: name, info: '' };
   if (a === 'driver_deactivate') return { label: d.kind === 'permanent' ? 'Driver diblokir permanen' : 'Driver dinonaktifkan sementara', tone: red, who: name, info: `Alasan: ${str(d.label)}${d.note ? `. ${str(d.note)}` : ''}` };
+  if (a === 'ad_save') return { label: 'Iklan Promo Terbaik disimpan', tone: blue, who: str(d.title), info: `Tayang sampai ${str(d.ends_at).slice(0, 10)}` };
+  if (a === 'ad_toggle') return { label: d.active ? 'Iklan dinyalakan' : 'Iklan dimatikan', tone: d.active ? green : amber, who: name, info: '' };
+  if (a === 'ad_delete') return { label: 'Iklan dihapus', tone: red, who: str(d.title), info: '' };
+  if (a === 'ads_reorder') return { label: 'Urutan iklan diubah', tone: slate, who: '-', info: `${str(d.count)} iklan` };
+  if (a === 'ads_max') return { label: 'Batas tayang iklan diubah', tone: blue, who: '-', info: `Menjadi ${str(d.max)} slot` };
   if (a === 'history_export') return { label: 'Dokumen riwayat diekspor (PDF)', tone: slate, who: name, info: '' };
   if (a === 'driver_unban') return { label: 'Blokir permanen driver dibuka', tone: amber, who: name, info: `Alasan buka: ${str(d.note)}` };
   if (a === 'driver_status_pending') return { label: 'Driver dikembalikan ke menunggu', tone: amber, who: name, info: '' };

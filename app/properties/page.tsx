@@ -22,6 +22,17 @@ import {
   ExternalLink
 } from 'lucide-react';
 
+interface PromoAd {
+  id: string;
+  property_id: string | null;
+  is_active: boolean;
+  starts_at: string;
+  ends_at: string;
+  views: number;
+  clicks: number;
+}
+const PROMO_DAY = 86400000;
+
 const QUICK_APARTMENT_TYPES = ['Studio', '1 BR', '2 BR', '3 BR', 'Loft'];
 const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 
@@ -103,6 +114,15 @@ export default function PropertiesPage() {
   const [longitude, setLongitude] = useState('');
   const [whatsapp, setWhatsapp] = useState('628');
 
+  // Promo Terbaik: iklan kost yang tersambung ke data hunian
+  const [promoAds, setPromoAds] = useState<PromoAd[]>([]);
+  const [promoFor, setPromoFor] = useState<Property | null>(null);
+  const [promoDays, setPromoDays] = useState('30');
+  const [promoBadge, setPromoBadge] = useState('');
+  const [promoTitle, setPromoTitle] = useState('');
+  const [promoPaid, setPromoPaid] = useState('0');
+  const [promoBusy, setPromoBusy] = useState(false);
+
   // Modal Tinjau Kesiapan Survey
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
@@ -111,8 +131,65 @@ export default function PropertiesPage() {
   const [editFormData, setEditFormData] = useState<Partial<Property>>({});
   const [savingEdit, setSavingEdit] = useState(false);
 
+  const [promoNow] = useState(() => Date.now());
   const isApartment = category === 'Apartemen';
   const isWholeUnit = isApartment || category === 'Kontrakan' || category === 'G. House';
+
+  const loadPromoAds = async () => {
+    const { data, error } = await supabase.rpc('admin_ads_list');
+    if (!error && data) setPromoAds(((data as { items: PromoAd[] }).items ?? []).filter((a) => a.property_id));
+  };
+
+  const livePromo = (propertyId: string) =>
+    promoAds.find((a) => a.property_id === propertyId && a.is_active && new Date(a.ends_at).getTime() > promoNow);
+
+  const openPromo = (p: Property) => {
+    setPromoFor(p);
+    setPromoDays('30');
+    setPromoBadge('');
+    setPromoTitle('');
+    setPromoPaid('0');
+  };
+
+  const startPromo = async () => {
+    if (!promoFor) return;
+    setPromoBusy(true);
+    const days = parseInt(promoDays, 10) || 30;
+    const { data, error } = await supabase.rpc('admin_ad_save', {
+      p: {
+        category: 'kost',
+        property_id: promoFor.id,
+        title: promoTitle,
+        badge_text: promoBadge,
+        starts_at: new Date().toISOString(),
+        ends_at: new Date(Date.now() + days * PROMO_DAY).toISOString(),
+        paid_amount: Number(promoPaid) || 0,
+        is_active: true,
+      },
+    });
+    const r = data as { success?: boolean; message?: string } | null;
+    setPromoBusy(false);
+    if (error || !r?.success) {
+      alert(error?.message || r?.message || 'Gagal menayangkan promo.');
+      return;
+    }
+    setPromoFor(null);
+    await loadPromoAds();
+  };
+
+  const stopPromo = async (adId: string) => {
+    if (!confirm('Hentikan tayang kost ini di Promo Terbaik?')) return;
+    setPromoBusy(true);
+    const { data, error } = await supabase.rpc('admin_ad_set_active', { p_id: adId, p_active: false });
+    const r = data as { success?: boolean; message?: string } | null;
+    setPromoBusy(false);
+    if (error || !r?.success) {
+      alert(error?.message || r?.message || 'Gagal menghentikan promo.');
+      return;
+    }
+    setPromoFor(null);
+    await loadPromoAds();
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -129,6 +206,7 @@ export default function PropertiesPage() {
         }
         setLoading(false);
       }
+      if (isMounted) await loadPromoAds();
     }
 
     loadData();
@@ -594,6 +672,24 @@ export default function PropertiesPage() {
                               <MessageCircle className="w-3.5 h-3.5" />
                             </a>
                           )}
+                          {(() => {
+                            const live = livePromo(String(p.id));
+                            return (
+                              <button
+                                onClick={() => openPromo(p)}
+                                title={live ? 'Sedang tayang di Promo Terbaik' : 'Tampilkan di Promo Terbaik'}
+                                className={`text-[11px] font-bold px-3 py-2 rounded-lg border transition-colors ${
+                                  live
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                    : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
+                                }`}
+                              >
+                                {live
+                                  ? `Tayang s.d. ${new Date(live.ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}`
+                                  : 'Promo'}
+                              </button>
+                            );
+                          })()}
                           <button
                             onClick={() => handleStartEdit(p)}
                             className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200/60"
@@ -628,6 +724,75 @@ export default function PropertiesPage() {
           Menampilkan {filteredProperties.length} dari {properties.length} hunian
         </div>
       </section>
+
+      {/* Modal Promo Terbaik */}
+      {promoFor && (() => {
+        const live = livePromo(String(promoFor.id));
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden border border-slate-100">
+              <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm leading-tight">Promo Terbaik</h3>
+                  <p className="text-[11px] text-slate-500 mt-0.5">{promoFor.name}</p>
+                </div>
+                <button onClick={() => setPromoFor(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {live ? (
+                <div className="p-5 space-y-4 text-xs">
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+                    Sedang tayang sampai {new Date(live.ends_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}.
+                    Sejauh ini {live.views.toLocaleString('id-ID')} tayang dan {live.clicks.toLocaleString('id-ID')} ketuk.
+                  </div>
+                  <p className="text-slate-500">Judul, foto, dan lokasi ikut data kost ini. Urutan tayang dan perpanjangan diatur di menu Iklan Promo Terbaik.</p>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setPromoFor(null)} className="px-4 py-2 rounded-lg border border-slate-200 font-semibold text-slate-600">Tutup</button>
+                    <button onClick={() => stopPromo(live.id)} disabled={promoBusy} className="px-4 py-2 rounded-lg bg-rose-600 text-white font-bold hover:bg-rose-700 disabled:opacity-50">
+                      Hentikan tayang
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-5 space-y-4 text-xs">
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Lama tayang</label>
+                    <select value={promoDays} onChange={(e) => setPromoDays(e.target.value)} className="w-full p-2 border rounded-lg bg-white">
+                      <option value="7">1 minggu</option>
+                      <option value="14">2 minggu</option>
+                      <option value="30">1 bulan</option>
+                      <option value="90">3 bulan</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Judul (kosongkan untuk memakai nama kost)</label>
+                    <input value={promoTitle} maxLength={80} onChange={(e) => setPromoTitle(e.target.value)} className="w-full p-2 border rounded-lg" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">Stempel kecil (opsional)</label>
+                      <input value={promoBadge} maxLength={24} onChange={(e) => setPromoBadge(e.target.value)} placeholder="DISKON 1 BULAN" className="w-full p-2 border rounded-lg" />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">Nominal dibayar (Rp)</label>
+                      <input type="number" min={0} value={promoPaid} onChange={(e) => setPromoPaid(e.target.value)} className="w-full p-2 border rounded-lg" />
+                    </div>
+                  </div>
+                  <p className="text-slate-500">Foto, lokasi, dan nomor WhatsApp diambil dari data kost, dan ikut berubah kalau data kost diubah. Iklan masuk di urutan paling bawah; geser di menu Iklan Promo Terbaik.</p>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setPromoFor(null)} className="px-4 py-2 rounded-lg border border-slate-200 font-semibold text-slate-600">Batal</button>
+                    <button onClick={startPromo} disabled={promoBusy} className="inline-flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 text-white font-bold hover:bg-blue-700 disabled:opacity-50">
+                      {promoBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />} Tayangkan
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal Tinjau Kesiapan Survey Bareng */}
       {selectedProperty && (

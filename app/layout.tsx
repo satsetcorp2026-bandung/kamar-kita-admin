@@ -32,6 +32,7 @@ import {
   Menu,
   X,
   Lock,
+  Megaphone,
 } from 'lucide-react';
 
 type Role = 'owner' | 'admin' | 'cs';
@@ -80,7 +81,10 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Pemasaran',
-    items: [{ name: 'Banner Promo', href: '/banners', icon: ImageIcon, roles: ['owner', 'admin'] }],
+    items: [
+      { name: 'Banner Promo', href: '/banners', icon: ImageIcon, roles: ['owner', 'admin'] },
+      { name: 'Iklan Promo Terbaik', href: '/iklan', icon: Megaphone, roles: ['owner', 'admin'] },
+    ],
   },
 ];
 
