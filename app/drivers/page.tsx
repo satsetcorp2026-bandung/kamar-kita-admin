@@ -819,7 +819,7 @@ export default function DriversPage() {
                         {selected.deactivation_note && <div className="mt-1">{selected.deactivation_note}</div>}
                         {selected.deactivated_at && <div className="mt-1 opacity-80">{fmtDateTime(selected.deactivated_at)}</div>}
                         {phaseOf(selected) === 'banned' && (
-                          <div className="mt-1 opacity-80">Akun penumpangnya juga ikut diblokir. Tidak bisa diaktifkan lewat tombol biasa.</div>
+                          <div className="mt-1 opacity-80">Akun penumpangnya juga ikut diblokir, dan nomor HP serta plat kendaraannya masuk daftar hitam (tidak bisa dipakai daftar mitra dengan akun lain). Tidak bisa diaktifkan lewat tombol biasa.</div>
                         )}
                       </div>
                     )}
@@ -1139,7 +1139,7 @@ export default function DriversPage() {
               </div>
               {selected.deactivation_note && <div className="mt-1">{selected.deactivation_note}</div>}
               <div className="mt-2">
-                Setelah dibuka, akun penumpangnya bisa dipakai lagi dan driver kembali ke &quot;Menunggu verifikasi&quot;. Dia tidak langsung aktif;
+                Setelah dibuka, akun penumpangnya bisa dipakai lagi, nomor HP dan plat keluar dari daftar hitam, dan driver kembali ke &quot;Menunggu verifikasi&quot;. Dia tidak langsung aktif;
                 dokumennya harus diperiksa dan disetujui ulang. Tindakan ini dicatat di log aktivitas.
               </div>
             </div>
