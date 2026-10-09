@@ -68,6 +68,8 @@ function describe(r: Row): { label: string; tone: string; who: string; info: str
   if (a === 'driver_doc_rejected') return { label: 'Dokumen ditolak', tone: red, who: name, info: `${DOC_LABEL[String(d.document)] ?? str(d.document)}. Alasan: ${str(d.reason)}` };
   if (a === 'driver_status_approved') return { label: 'Driver diaktifkan', tone: green, who: name, info: '' };
   if (a === 'driver_status_rejected') return { label: 'Driver ditolak atau dinonaktifkan', tone: red, who: name, info: '' };
+  if (a === 'driver_deactivate') return { label: d.kind === 'permanent' ? 'Driver diblokir permanen' : 'Driver dinonaktifkan sementara', tone: red, who: name, info: `Alasan: ${str(d.label)}${d.note ? `. ${str(d.note)}` : ''}` };
+  if (a === 'driver_unban') return { label: 'Blokir permanen driver dibuka', tone: amber, who: name, info: `Alasan buka: ${str(d.note)}` };
   if (a === 'driver_status_pending') return { label: 'Driver dikembalikan ke menunggu', tone: amber, who: name, info: '' };
   if (a === 'driver_car_class') return { label: 'Kelas mobil diubah', tone: blue, who: name, info: `${d.from === 'large' ? 'Besar' : 'Kecil'} menjadi ${d.to === 'large' ? 'Besar' : 'Kecil'}` };
   if (a === 'driver_topup') {

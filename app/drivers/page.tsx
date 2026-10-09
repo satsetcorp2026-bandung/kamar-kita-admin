@@ -41,6 +41,10 @@ interface Driver {
   docs_rejected: number;
   trips_completed: number;
   reports_against: number;
+  deactivation_kind: 'temporary' | 'permanent' | null;
+  deactivation_reason: string | null;
+  deactivation_note: string | null;
+  deactivated_at: string | null;
 }
 
 interface DriverDoc {
@@ -81,11 +85,31 @@ const DOC_LABEL: Record<string, string> = {
 
 const REJECT_PRESETS = ['Foto buram atau tidak terbaca', 'Dokumen sudah kedaluwarsa', 'Bukan dokumen yang diminta', 'Data tidak cocok dengan akun'];
 
-const VERIF_META: Record<VerifStatus, { label: string; chip: string }> = {
+type Phase = 'pending' | 'active' | 'rejected' | 'paused' | 'banned';
+
+const PHASE_META: Record<Phase, { label: string; chip: string }> = {
   pending: { label: 'Menunggu', chip: 'bg-amber-50 text-amber-700 border-amber-200' },
-  approved: { label: 'Aktif', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  rejected: { label: 'Ditolak / nonaktif', chip: 'bg-rose-50 text-rose-700 border-rose-200' },
+  active: { label: 'Aktif', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  rejected: { label: 'Ditolak', chip: 'bg-slate-100 text-slate-600 border-slate-200' },
+  paused: { label: 'Nonaktif sementara', chip: 'bg-orange-50 text-orange-700 border-orange-200' },
+  banned: { label: 'Diblokir permanen', chip: 'bg-rose-100 text-rose-800 border-rose-300' },
 };
+
+const DEACT_REASONS: { code: string; label: string; heavy: boolean }[] = [
+  { code: 'criminal', label: 'Tindak kriminal', heavy: true },
+  { code: 'violence', label: 'Kekerasan atau pelecehan', heavy: true },
+  { code: 'fraud', label: 'Penipuan atau manipulasi', heavy: true },
+  { code: 'fake_docs', label: 'Dokumen palsu', heavy: true },
+  { code: 'complaints', label: 'Komplain berulang', heavy: false },
+  { code: 'rude', label: 'Perilaku tidak sopan', heavy: false },
+  { code: 'inactive', label: 'Tidak aktif', heavy: false },
+  { code: 'own_request', label: 'Permintaan sendiri', heavy: false },
+  { code: 'other', label: 'Lainnya', heavy: false },
+];
+
+function reasonLabel(code: string | null) {
+  return DEACT_REASONS.find((r) => r.code === code)?.label ?? code ?? '-';
+}
 
 const TRIP_STATUS: Record<string, string> = {
   completed: 'Selesai',
@@ -110,6 +134,15 @@ function statusOf(d: Driver): VerifStatus {
   return (d.verification_status ?? 'pending') as VerifStatus;
 }
 
+function phaseOf(d: Driver): Phase {
+  const st = statusOf(d);
+  if (st === 'approved') return 'active';
+  if (st === 'pending') return 'pending';
+  if (d.deactivation_kind === 'permanent') return 'banned';
+  if (d.deactivation_kind === 'temporary') return 'paused';
+  return 'rejected';
+}
+
 function tint(tone: string) {
   if (tone.includes('amber')) return 'from-[#f9e6c6] to-[#efcd96]';
   if (tone.includes('rose')) return 'from-[#f7d9de] to-[#ebb0ba]';
@@ -125,7 +158,7 @@ export default function DriversPage() {
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
 
-  const [statusFilter, setStatusFilter] = useState<'all' | VerifStatus>('pending');
+  const [statusFilter, setStatusFilter] = useState<'all' | Phase>('pending');
   const [typeFilter, setTypeFilter] = useState<'all' | 'ride' | 'car'>('all');
   const [query, setQuery] = useState('');
 
@@ -141,6 +174,13 @@ export default function DriversPage() {
 
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [deactOpen, setDeactOpen] = useState(false);
+  const [deactReason, setDeactReason] = useState('');
+  const [deactKind, setDeactKind] = useState<'temporary' | 'permanent'>('temporary');
+  const [deactNote, setDeactNote] = useState('');
+  const [banOpen, setBanOpen] = useState(false);
+  const [banConfirm, setBanConfirm] = useState('');
+  const [banNote, setBanNote] = useState('');
   const [topupAmount, setTopupAmount] = useState('');
   const [topupNote, setTopupNote] = useState('');
 
@@ -275,6 +315,57 @@ export default function DriversPage() {
     reloadAll();
   }
 
+  function openDeactivate() {
+    setDeactReason('');
+    setDeactKind('temporary');
+    setDeactNote('');
+    setDeactOpen(true);
+  }
+
+  const deactHeavy = DEACT_REASONS.find((r) => r.code === deactReason)?.heavy ?? false;
+  const deactEffectiveKind = deactHeavy ? 'permanent' : deactKind;
+  const deactNeedsNote = deactEffectiveKind === 'permanent' || deactReason === 'other';
+  const deactReady = !!deactReason && (!deactNeedsNote || deactNote.trim().length >= 5);
+
+  async function submitDeactivate() {
+    if (!selected || !deactReady) return;
+    setBusy(true);
+    const { data, error: err } = await supabase.rpc('admin_driver_deactivate', {
+      p_driver: selected.id,
+      p_kind: deactEffectiveKind,
+      p_reason: deactReason,
+      p_note: deactNote.trim() || null,
+    });
+    setBusy(false);
+    const res = data as { success?: boolean; message?: string } | null;
+    if (err || !res?.success) {
+      alert(`Gagal: ${err?.message ?? res?.message ?? 'tidak diketahui'}`);
+      return;
+    }
+    setDeactOpen(false);
+    reloadAll();
+  }
+
+  async function submitUnban() {
+    if (!selected) return;
+    setBusy(true);
+    const { data, error: err } = await supabase.rpc('admin_driver_unban', {
+      p_driver: selected.id,
+      p_confirm: banConfirm,
+      p_note: banNote,
+    });
+    setBusy(false);
+    const res = data as { success?: boolean; message?: string } | null;
+    if (err || !res?.success) {
+      alert(`Gagal: ${err?.message ?? res?.message ?? 'tidak diketahui'}`);
+      return;
+    }
+    setBanOpen(false);
+    setBanConfirm('');
+    setBanNote('');
+    reloadAll();
+  }
+
   async function setCarClass(driver: Driver, cls: 'small' | 'large') {
     setBusy(true);
     const { data, error: err } = await supabase.rpc('admin_set_driver_car_class', {
@@ -318,10 +409,10 @@ export default function DriversPage() {
   }
 
   const counts = useMemo(() => {
-    const c = { pending: 0, approved: 0, rejected: 0, online: 0 };
+    const c = { pending: 0, active: 0, rejected: 0, paused: 0, banned: 0, online: 0 };
     drivers.forEach((d) => {
-      c[statusOf(d)] += 1;
-      if (statusOf(d) === 'approved' && d.is_online) c.online += 1;
+      c[phaseOf(d)] += 1;
+      if (phaseOf(d) === 'active' && d.is_online) c.online += 1;
     });
     return c;
   }, [drivers]);
@@ -329,7 +420,9 @@ export default function DriversPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return drivers.filter((d) => {
-      if (statusFilter !== 'all' && statusOf(d) !== statusFilter) return false;
+      if (statusFilter === 'rejected') {
+        if (phaseOf(d) !== 'rejected' && phaseOf(d) !== 'paused') return false;
+      } else if (statusFilter !== 'all' && phaseOf(d) !== statusFilter) return false;
       if (typeFilter !== 'all' && d.vehicle_type !== typeFilter) return false;
       if (!q) return true;
       return (
@@ -340,10 +433,11 @@ export default function DriversPage() {
     });
   }, [drivers, statusFilter, typeFilter, query]);
 
-  const cards: { key: 'all' | VerifStatus; label: string; value: number; tone: string }[] = [
+  const cards: { key: 'all' | Phase; label: string; value: number; tone: string }[] = [
     { key: 'pending', label: 'Menunggu verifikasi', value: counts.pending, tone: 'text-amber-600' },
-    { key: 'approved', label: `Aktif (${counts.online} online)`, value: counts.approved, tone: 'text-emerald-600' },
-    { key: 'rejected', label: 'Ditolak / nonaktif', value: counts.rejected, tone: 'text-rose-600' },
+    { key: 'active', label: `Aktif (${counts.online} online)`, value: counts.active, tone: 'text-emerald-600' },
+    { key: 'rejected', label: 'Ditolak / nonaktif', value: counts.rejected + counts.paused, tone: 'text-blue-600' },
+    { key: 'banned', label: 'Diblokir permanen', value: counts.banned, tone: 'text-rose-600' },
     { key: 'all', label: 'Semua driver', value: drivers.length, tone: 'text-slate-900' },
   ];
 
@@ -381,7 +475,7 @@ export default function DriversPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         {cards.map((c) => (
           <button
             key={c.key}
@@ -467,8 +561,8 @@ export default function DriversPage() {
                         </div>
                       </td>
                       <td className="px-3 py-3.5">
-                        <span className={`inline-flex text-[11px] font-semibold px-2 py-1 rounded-full border ${VERIF_META[st].chip}`}>
-                          {VERIF_META[st].label}
+                        <span className={`inline-flex text-[11px] font-semibold px-2 py-1 rounded-full border ${PHASE_META[phaseOf(d)].chip}`}>
+                          {PHASE_META[phaseOf(d)].label}
                         </span>
                       </td>
                       <td className="px-3 py-3.5 text-xs">
@@ -507,8 +601,8 @@ export default function DriversPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h3 className="text-lg font-bold text-slate-900 truncate">{selected.full_name ?? 'Tanpa nama'}</h3>
-                    <span className={`inline-flex text-[11px] font-semibold px-2 py-1 rounded-full border ${VERIF_META[statusOf(selected)].chip}`}>
-                      {VERIF_META[statusOf(selected)].label}
+                    <span className={`inline-flex text-[11px] font-semibold px-2 py-1 rounded-full border ${PHASE_META[phaseOf(selected)].chip}`}>
+                      {PHASE_META[phaseOf(selected)].label}
                     </span>
                   </div>
                   <div className="text-xs text-slate-500 mt-1">
@@ -713,33 +807,74 @@ export default function DriversPage() {
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       Menonaktifkan driver membuatnya offline dan tidak bisa menerima order. Dokumen dan saldonya tetap tersimpan.
                     </p>
+                    {(phaseOf(selected) === 'banned' || phaseOf(selected) === 'paused') && (
+                      <div
+                        className={`mt-3 rounded-xl border px-3.5 py-3 text-xs leading-relaxed ${
+                          phaseOf(selected) === 'banned' ? 'border-rose-200 bg-rose-50 text-rose-800' : 'border-orange-200 bg-orange-50 text-orange-800'
+                        }`}
+                      >
+                        <div className="font-semibold">
+                          {phaseOf(selected) === 'banned' ? 'Diblokir permanen' : 'Dinonaktifkan sementara'}: {reasonLabel(selected.deactivation_reason)}
+                        </div>
+                        {selected.deactivation_note && <div className="mt-1">{selected.deactivation_note}</div>}
+                        {selected.deactivated_at && <div className="mt-1 opacity-80">{fmtDateTime(selected.deactivated_at)}</div>}
+                        {phaseOf(selected) === 'banned' && (
+                          <div className="mt-1 opacity-80">Akun penumpangnya juga ikut diblokir. Tidak bisa diaktifkan lewat tombol biasa.</div>
+                        )}
+                      </div>
+                    )}
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {statusOf(selected) !== 'approved' && (
+                      {phaseOf(selected) === 'banned' ? (
                         <button
                           disabled={busy}
-                          onClick={() => setDriverStatus(selected, 'approved')}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+                          onClick={() => {
+                            setBanConfirm('');
+                            setBanNote('');
+                            setBanOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Aktifkan driver
+                          <AlertTriangle className="w-3.5 h-3.5" /> Buka blokir
                         </button>
-                      )}
-                      {statusOf(selected) !== 'rejected' && (
-                        <button
-                          disabled={busy}
-                          onClick={() => setDriverStatus(selected, 'rejected')}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
-                        >
-                          <XCircle className="w-3.5 h-3.5" /> Tolak / nonaktifkan
-                        </button>
-                      )}
-                      {statusOf(selected) !== 'pending' && (
-                        <button
-                          disabled={busy}
-                          onClick={() => setDriverStatus(selected, 'pending')}
-                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold disabled:opacity-50"
-                        >
-                          <Clock className="w-3.5 h-3.5" /> Kembalikan ke menunggu
-                        </button>
+                      ) : (
+                        <>
+                          {statusOf(selected) !== 'approved' && (
+                            <button
+                              disabled={busy}
+                              onClick={() => setDriverStatus(selected, 'approved')}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Aktifkan driver
+                            </button>
+                          )}
+                          {statusOf(selected) === 'approved' && (
+                            <button
+                              disabled={busy}
+                              onClick={openDeactivate}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Nonaktifkan atau blokir
+                            </button>
+                          )}
+                          {statusOf(selected) === 'pending' && (
+                            <button
+                              disabled={busy}
+                              onClick={() => setDriverStatus(selected, 'rejected')}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
+                            >
+                              <XCircle className="w-3.5 h-3.5" /> Tolak pendaftaran
+                            </button>
+                          )}
+                          {statusOf(selected) === 'approved' && (
+                            <button
+                              disabled={busy}
+                              onClick={() => setDriverStatus(selected, 'pending')}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold disabled:opacity-50"
+                            >
+                              <Clock className="w-3.5 h-3.5" /> Kembalikan ke menunggu
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -858,23 +993,48 @@ export default function DriversPage() {
 
             {tab === 'verifikasi' && (
               <div className="px-6 py-4 border-t border-slate-200 bg-white shrink-0 flex flex-wrap items-center gap-2">
-                {statusOf(selected) !== 'approved' && (
+                {phaseOf(selected) === 'banned' ? (
                   <button
                     disabled={busy}
-                    onClick={() => setDriverStatus(selected, 'approved')}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+                    onClick={() => {
+                      setBanConfirm('');
+                      setBanNote('');
+                      setBanOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full border border-rose-300 text-rose-700 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
                   >
-                    <CheckCircle2 className="w-3.5 h-3.5" /> Aktifkan driver
+                    <AlertTriangle className="w-3.5 h-3.5" /> Buka blokir
                   </button>
-                )}
-                {statusOf(selected) !== 'rejected' && (
-                  <button
-                    disabled={busy}
-                    onClick={() => setDriverStatus(selected, 'rejected')}
-                    className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
-                  >
-                    <XCircle className="w-3.5 h-3.5" /> Tolak pendaftaran
-                  </button>
+                ) : (
+                  <>
+                    {statusOf(selected) !== 'approved' && (
+                      <button
+                        disabled={busy}
+                        onClick={() => setDriverStatus(selected, 'approved')}
+                        className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Aktifkan driver
+                      </button>
+                    )}
+                    {statusOf(selected) === 'pending' && (
+                      <button
+                        disabled={busy}
+                        onClick={() => setDriverStatus(selected, 'rejected')}
+                        className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Tolak pendaftaran
+                      </button>
+                    )}
+                    {statusOf(selected) === 'approved' && (
+                      <button
+                        disabled={busy}
+                        onClick={openDeactivate}
+                        className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full border border-rose-200 text-rose-600 hover:bg-rose-50 text-xs font-semibold disabled:opacity-50"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Nonaktifkan atau blokir
+                      </button>
+                    )}
+                  </>
                 )}
                 <span className="ml-auto text-[11px] text-slate-400">
                   {selected.docs_approved}/{selected.docs_total} dokumen disetujui
@@ -882,6 +1042,141 @@ export default function DriversPage() {
               </div>
             )}
           </aside>
+        </div>
+      )}
+      {selected && deactOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/50" onClick={() => !busy && setDeactOpen(false)} />
+          <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl p-6">
+            <h4 className="text-base font-bold text-slate-900">Nonaktifkan {selected.full_name ?? 'driver ini'}</h4>
+            <p className="text-xs text-slate-500 mt-1">Driver otomatis offline dan menerima pemberitahuan. Alasan hanya tampil di dashboard.</p>
+            <div className="mt-4 text-xs font-semibold text-slate-700">Alasan</div>
+            <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+              {DEACT_REASONS.map((r) => (
+                <button
+                  key={r.code}
+                  onClick={() => setDeactReason(r.code)}
+                  className={`text-left px-3 py-2 rounded-xl border text-xs font-medium transition ${
+                    deactReason === r.code
+                      ? r.heavy
+                        ? 'border-rose-400 bg-rose-50 text-rose-800'
+                        : 'border-[#2f7088] bg-sky-50 text-slate-900'
+                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 text-xs font-semibold text-slate-700">Jenis tindakan</div>
+            {deactHeavy ? (
+              <div className="mt-1.5 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-800 leading-relaxed">
+                Alasan ini otomatis menjadi blokir permanen. Akun penumpangnya ikut diblokir dan tidak bisa diaktifkan dengan satu tombol.
+              </div>
+            ) : (
+              <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                {([
+                  ['temporary', 'Sementara', 'Bisa diaktifkan lagi'],
+                  ['permanent', 'Blokir permanen', 'Akun penumpang ikut diblokir'],
+                ] as ['temporary' | 'permanent', string, string][]).map(([k, t, sub]) => (
+                  <button
+                    key={k}
+                    onClick={() => setDeactKind(k)}
+                    className={`text-left px-3 py-2 rounded-xl border transition ${
+                      deactKind === k
+                        ? k === 'permanent'
+                          ? 'border-rose-400 bg-rose-50'
+                          : 'border-[#2f7088] bg-sky-50'
+                        : 'border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    <div className="text-xs font-semibold text-slate-900">{t}</div>
+                    <div className="text-[11px] text-slate-500">{sub}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="mt-4 text-xs font-semibold text-slate-700">
+              Catatan {deactNeedsNote ? '(wajib, minimal 5 huruf)' : '(boleh dikosongkan)'}
+            </div>
+            <textarea
+              value={deactNote}
+              onChange={(e) => setDeactNote(e.target.value)}
+              maxLength={300}
+              rows={3}
+              placeholder="Contoh: laporan penumpang tanggal 3, sudah dikonfirmasi"
+              className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                disabled={busy}
+                onClick={() => setDeactOpen(false)}
+                className="px-4 py-2 rounded-full border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                disabled={busy || !deactReady}
+                onClick={submitDeactivate}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold disabled:opacity-40"
+              >
+                {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                {deactEffectiveKind === 'permanent' ? 'Blokir permanen' : 'Nonaktifkan'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selected && banOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/50" onClick={() => !busy && setBanOpen(false)} />
+          <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl p-6">
+            <h4 className="text-base font-bold text-rose-700">Buka blokir permanen</h4>
+            <div className="mt-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs text-rose-800 leading-relaxed">
+              <div className="font-semibold">
+                {selected.full_name ?? 'Driver ini'} diblokir karena: {reasonLabel(selected.deactivation_reason)}
+              </div>
+              {selected.deactivation_note && <div className="mt-1">{selected.deactivation_note}</div>}
+              <div className="mt-2">
+                Setelah dibuka, akun penumpangnya bisa dipakai lagi dan driver kembali ke &quot;Menunggu verifikasi&quot;. Dia tidak langsung aktif;
+                dokumennya harus diperiksa dan disetujui ulang. Tindakan ini dicatat di log aktivitas.
+              </div>
+            </div>
+            <div className="mt-4 text-xs font-semibold text-slate-700">Alasan membuka blokir (minimal 10 huruf)</div>
+            <textarea
+              value={banNote}
+              onChange={(e) => setBanNote(e.target.value)}
+              maxLength={300}
+              rows={3}
+              className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-400"
+            />
+            <div className="mt-3 text-xs font-semibold text-slate-700">
+              Ketik <span className="font-mono text-rose-700">BUKA BLOKIR</span> untuk melanjutkan
+            </div>
+            <input
+              value={banConfirm}
+              onChange={(e) => setBanConfirm(e.target.value)}
+              className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-400"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                disabled={busy}
+                onClick={() => setBanOpen(false)}
+                className="px-4 py-2 rounded-full border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                disabled={busy || banConfirm.trim().toUpperCase() !== 'BUKA BLOKIR' || banNote.trim().length < 10}
+                onClick={submitUnban}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold disabled:opacity-40"
+              >
+                {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Buka blokir
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
