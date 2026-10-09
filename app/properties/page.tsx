@@ -121,6 +121,7 @@ export default function PropertiesPage() {
   const [promoBadge, setPromoBadge] = useState('');
   const [promoTitle, setPromoTitle] = useState('');
   const [promoPaid, setPromoPaid] = useState('0');
+  const [promoDisc, setPromoDisc] = useState('');
   const [promoBusy, setPromoBusy] = useState(false);
 
   // Modal Tinjau Kesiapan Survey
@@ -149,6 +150,7 @@ export default function PropertiesPage() {
     setPromoBadge('');
     setPromoTitle('');
     setPromoPaid('0');
+    setPromoDisc('');
   };
 
   const startPromo = async () => {
@@ -165,6 +167,7 @@ export default function PropertiesPage() {
         ends_at: new Date(Date.now() + days * PROMO_DAY).toISOString(),
         paid_amount: Number(promoPaid) || 0,
         is_active: true,
+        discount_percent: promoDisc ? Number(promoDisc) : null,
       },
     });
     const r = data as { success?: boolean; message?: string } | null;
@@ -772,14 +775,19 @@ export default function PropertiesPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="font-semibold text-slate-700 block mb-1">Stempel kecil (opsional)</label>
-                      <input value={promoBadge} maxLength={24} onChange={(e) => setPromoBadge(e.target.value)} placeholder="DISKON 1 BULAN" className="w-full p-2 border rounded-lg" />
+                      <label className="font-semibold text-slate-700 block mb-1">Diskon (persen, opsional)</label>
+                      <input type="number" min={1} max={90} value={promoDisc} onChange={(e) => setPromoDisc(e.target.value)} placeholder="10" className="w-full p-2 border rounded-lg" />
                     </div>
                     <div>
-                      <label className="font-semibold text-slate-700 block mb-1">Nominal dibayar (Rp)</label>
-                      <input type="number" min={0} value={promoPaid} onChange={(e) => setPromoPaid(e.target.value)} className="w-full p-2 border rounded-lg" />
+                      <label className="font-semibold text-slate-700 block mb-1">Keterangan singkat (opsional)</label>
+                      <input value={promoBadge} maxLength={24} onChange={(e) => setPromoBadge(e.target.value)} placeholder="Bulan ini" className="w-full p-2 border rounded-lg" />
                     </div>
                   </div>
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Nominal dibayar (Rp)</label>
+                    <input type="number" min={0} value={promoPaid} onChange={(e) => setPromoPaid(e.target.value)} className="w-full p-2 border rounded-lg" />
+                  </div>
+                  <p className="text-slate-500">Diskon dihitung dari harga bulanan kost: harga normal dicoret, harga setelah diskon tampil di aplikasi. Pastikan pemilik kost memang memberi diskon ini.</p>
                   <p className="text-slate-500">Foto, lokasi, dan nomor WhatsApp diambil dari data kost, dan ikut berubah kalau data kost diubah. Iklan masuk di urutan paling bawah; geser di menu Iklan Promo Terbaik.</p>
                   <div className="flex justify-end gap-2">
                     <button onClick={() => setPromoFor(null)} className="px-4 py-2 rounded-lg border border-slate-200 font-semibold text-slate-600">Batal</button>

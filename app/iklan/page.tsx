@@ -21,6 +21,7 @@ interface Ad {
   advertiser_phone: string | null;
   paid_amount: number;
   notes: string | null;
+  discount_percent: number | null;
   property_name: string | null;
   property_image: string | null;
   property_ok: boolean | null;
@@ -75,12 +76,13 @@ interface Form {
   advertiser_phone: string;
   paid_amount: string;
   notes: string;
+  discount_percent: string;
 }
 const emptyForm = (): Form => ({
   id: '', category: 'kost', property_id: '', title: '', subtitle: '', badge_text: '', image_url: '', external_url: '',
   starts_at: toLocalInput(new Date().toISOString()),
   ends_at: toLocalInput(new Date(Date.now() + 30 * DAY).toISOString()),
-  is_active: true, advertiser_name: '', advertiser_phone: '', paid_amount: '0', notes: '',
+  is_active: true, advertiser_name: '', advertiser_phone: '', paid_amount: '0', notes: '', discount_percent: '',
 });
 
 export default function IklanPage() {
@@ -209,6 +211,7 @@ export default function IklanPage() {
     starts_at: toLocalInput(a.starts_at), ends_at: toLocalInput(a.ends_at), is_active: a.is_active,
     advertiser_name: a.advertiser_name ?? '', advertiser_phone: a.advertiser_phone ?? '',
     paid_amount: String(a.paid_amount ?? 0), notes: a.notes ?? '',
+    discount_percent: a.discount_percent ? String(a.discount_percent) : '',
   });
 
   const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -251,6 +254,7 @@ export default function IklanPage() {
       advertiser_phone: form.advertiser_phone,
       paid_amount: Number(form.paid_amount) || 0,
       notes: form.notes,
+      discount_percent: form.category === 'kost' && form.discount_percent ? Number(form.discount_percent) : null,
     };
     const { data, error: er } = await supabase.rpc('admin_ad_save', { p: payload });
     const r = data as Result | null;
@@ -354,7 +358,7 @@ export default function IklanPage() {
                       )}
                     </div>
                     <div className="text-[11px] text-slate-500 mt-0.5">
-                      {CAT_LABEL[a.category]}{a.advertiser_name ? ` • ${a.advertiser_name}` : ''} • {fmtDate(a.starts_at)} sampai {fmtDate(a.ends_at)}
+                      {CAT_LABEL[a.category]}{a.discount_percent ? ` • Diskon ${a.discount_percent}%` : ''}{a.advertiser_name ? ` • ${a.advertiser_name}` : ''} • {fmtDate(a.starts_at)} sampai {fmtDate(a.ends_at)}
                     </div>
                   </div>
 
@@ -394,10 +398,18 @@ export default function IklanPage() {
                   </select>
                 </div>
                 <div>
-                  <label className={lab}>Stempel kecil (opsional)</label>
-                  <input value={form.badge_text} maxLength={24} onChange={(e) => setForm({ ...form, badge_text: e.target.value })} placeholder="DISKON 1 BULAN" className={input} />
+                  <label className={lab}>Keterangan singkat (opsional)</label>
+                  <input value={form.badge_text} maxLength={24} onChange={(e) => setForm({ ...form, badge_text: e.target.value })} placeholder="Bulan ini" className={input} />
                 </div>
               </div>
+
+              {form.category === 'kost' && (
+                <div>
+                  <label className={lab}>Diskon (persen, opsional)</label>
+                  <input type="number" min={1} max={90} value={form.discount_percent} onChange={(e) => setForm({ ...form, discount_percent: e.target.value })} placeholder="10" className={input} />
+                  <p className="text-[11px] text-slate-400 mt-1">Di aplikasi: harga normal kost dicoret, harga setelah diskon tampil otomatis. Pastikan pemilik kost memang memberi diskon ini.</p>
+                </div>
+              )}
 
               {form.category === 'kost' ? (
                 <div>
