@@ -115,7 +115,7 @@ export default function BannersPage() {
         setBannerImageUrl(publicUrlData.publicUrl);
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal mengunggah foto.';
+      const msg = (err as { message?: string } | null)?.message || 'Gagal mengunggah foto.';
       alert(msg);
     } finally {
       setUploadingImage(false);
@@ -158,7 +158,7 @@ export default function BannersPage() {
       resetBannerForm();
       alert('Banner promo berhasil diterbitkan!');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Gagal menyimpan banner.';
+      const msg = (err as { message?: string } | null)?.message || 'Gagal menyimpan banner.';
       alert(msg);
     } finally {
       setSavingBanner(false);
@@ -195,7 +195,7 @@ export default function BannersPage() {
     }
   }
 
-  // Kirim Broadcast Push Notification via Expo HTTP API
+  // Kirim siaran notifikasi lewat fungsi server
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!notifTitle.trim() || !notifBody.trim()) {
@@ -205,46 +205,25 @@ export default function BannersPage() {
 
     setSendingNotif(true);
     try {
-      // Daftar token diambil lewat fungsi server khusus admin
-      const { data: tokenData, error: tokenErr } = await supabase.rpc('admin_push_tokens', { p_target: notifTarget });
-      if (tokenErr) throw tokenErr;
-      const tokens: string[] = (tokenData as string[] | null) ?? [];
-
-      if (tokens.length === 0) {
-        alert('Tidak ada token perangkat yang aktif terdaftar untuk target ini.');
+      // Dikirim dari server (browser tidak boleh menembak langsung ke server Expo)
+      const { data, error } = await supabase.rpc('admin_broadcast_push', {
+        p_target: notifTarget,
+        p_title: notifTitle.trim(),
+        p_body: notifBody.trim(),
+      });
+      if (error) throw error;
+      const res = data as { success?: boolean; message?: string; count?: number } | null;
+      if (!res?.success) {
+        alert(res?.message || 'Siaran gagal dikirim.');
         setSendingNotif(false);
         return;
       }
 
-      // Format payload pesan ke Expo Push Server
-      const messages = tokens.map(token => ({
-        to: token,
-        sound: 'default',
-        title: notifTitle.trim(),
-        body: notifBody.trim(),
-        data: { screen: 'Beranda' },
-      }));
-
-      // Kirim dalam chunk per 100 token ke endpoint resmi Expo
-      const response = await fetch('https://exp.host/--/api/v2/push/send', {
-        method: 'POST',
-        headers: {
-          Accept: 'application/json',
-          'Accept-encoding': 'gzip, deflate',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(messages),
-      });
-
-      if (!response.ok) {
-        throw new Error('Gagal mengirim ke server Expo.');
-      }
-
-      alert(`Notifikasi berhasil disiarkan ke ${tokens.length} perangkat!`);
+      alert(`Notifikasi berhasil disiarkan ke ${res.count} perangkat!`);
       setNotifTitle('');
       setNotifBody('');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Terjadi kendala saat menyiarkan notifikasi.';
+      const msg = (err as { message?: string } | null)?.message || 'Terjadi kendala saat menyiarkan notifikasi.';
       alert(msg);
     } finally {
       setSendingNotif(false);
