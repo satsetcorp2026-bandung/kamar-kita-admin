@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { supabase } from '../lib/supabase';
-import { Search, RefreshCw, Phone, MapPin, Trash2, Radio, AlertTriangle, X, Loader2 } from 'lucide-react';
+import { Search, RefreshCw, Phone, MapPin, Trash2, Radio, AlertTriangle, X, Loader2, BadgeCheck, Clock } from 'lucide-react';
 
 interface SosVolunteer {
   id: string;
@@ -15,6 +15,7 @@ interface SosVolunteer {
   latitude: number | null;
   longitude: number | null;
   is_active: boolean;
+  is_verified: boolean | null;
   source: string;
   created_at: string;
 }
@@ -58,6 +59,12 @@ export default function RelawanSosPage() {
     setItems((prev) => prev.map((v) => (v.id === id ? { ...v, is_active: !current } : v)));
   };
 
+  const verify = async (id: string, approve: boolean) => {
+    const { error: e } = await supabase.rpc('admin_sos_volunteer_verify', { p_id: id, p_approve: approve });
+    if (e) { setError(errText(e)); return; }
+    setItems((prev) => prev.map((v) => (v.id === id ? { ...v, is_verified: approve } : v)));
+  };
+
   const remove = async (id: string, name: string) => {
     if (!window.confirm(`Hapus relawan "${name}" dari sistem?`)) return;
     const { error: e } = await supabase.from('sos_volunteers').delete().eq('id', id);
@@ -66,24 +73,27 @@ export default function RelawanSosPage() {
   };
 
   const q = search.toLowerCase();
-  const filtered = items.filter((v) =>
-    (v.name || '').toLowerCase().includes(q) ||
-    (v.profession || '').toLowerCase().includes(q) ||
-    (v.posko_name || '').toLowerCase().includes(q) ||
-    (v.phone || '').includes(search)
-  );
+  // yang menunggu verifikasi ditaruh paling atas
+  const filtered = items
+    .filter((v) =>
+      (v.name || '').toLowerCase().includes(q) ||
+      (v.profession || '').toLowerCase().includes(q) ||
+      (v.posko_name || '').toLowerCase().includes(q) ||
+      (v.phone || '').includes(search)
+    )
+    .sort((a, b) => Number(a.is_verified !== false) - Number(b.is_verified !== false));
 
   const stats = useMemo(() => ({
     total: items.length,
-    aktif: items.filter((v) => v.is_active).length,
-    off: items.filter((v) => !v.is_active).length,
+    aktif: items.filter((v) => v.is_active && v.is_verified !== false).length,
+    menunggu: items.filter((v) => v.is_verified === false).length,
     tolongin: items.filter((v) => v.source === 'tolongin').length,
   }), [items]);
 
   const kpis = [
     { label: 'Total relawan', value: stats.total, tint: 'bg-gradient-to-br from-[#e3ecfb] to-[#cddcf5]', text: 'text-[#27468c]' },
     { label: 'Aktif di radar', value: stats.aktif, tint: 'bg-gradient-to-br from-[#dcf3ea] to-[#bfe5d6]', text: 'text-[#1d6a50]' },
-    { label: 'Nonaktif', value: stats.off, tint: 'bg-gradient-to-br from-[#eceff4] to-[#d8dee8]', text: 'text-[#475569]' },
+    { label: 'Menunggu verifikasi', value: stats.menunggu, tint: 'bg-gradient-to-br from-[#fff1d6] to-[#fbdca0]', text: 'text-[#8a5a00]' },
     { label: 'Dari Sobat Tolongin', value: stats.tolongin, tint: 'bg-gradient-to-br from-[#fdeedb] to-[#f7d9b4]', text: 'text-[#8a5314]' },
   ];
 
@@ -92,7 +102,7 @@ export default function RelawanSosPage() {
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Relawan Siaga SOS</h2>
-          <p className="text-sm text-slate-500 mt-1">Petugas, tenaga medis, dan relawan warga yang terhubung ke radar darurat.</p>
+          <p className="text-sm text-slate-500 mt-1">Petugas, tenaga medis, dan relawan warga yang terhubung ke radar darurat. Pendaftar mandiri tampil di radar setelah kamu setujui.</p>
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
@@ -137,20 +147,21 @@ export default function RelawanSosPage() {
                 <th className="py-3 px-3 font-semibold">Posko</th>
                 <th className="py-3 px-3 font-semibold">Koordinat</th>
                 <th className="py-3 px-3 font-semibold">Asal data</th>
+                <th className="py-3 px-3 font-semibold text-center">Verifikasi</th>
                 <th className="py-3 px-3 font-semibold text-center">Radar</th>
                 <th className="py-3 px-4 font-semibold text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
               {loading && items.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-14 text-slate-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
+                <tr><td colSpan={8} className="text-center py-14 text-slate-400"><Loader2 className="w-5 h-5 animate-spin mx-auto" /></td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-slate-400">Tidak ada relawan yang cocok.</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-slate-400">Tidak ada relawan yang cocok.</td></tr>
               ) : (
                 filtered.map((v) => {
                   const wa = v.phone ? v.phone.replace(/[^0-9]/g, '').replace(/^0/, '62') : '';
                   return (
-                    <tr key={v.id} className="hover:bg-slate-50/60 transition">
+                    <tr key={v.id} className={`transition ${v.is_verified === false ? 'bg-amber-50/60 hover:bg-amber-50' : 'hover:bg-slate-50/60'}`}>
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           {v.avatar_url ? (
@@ -186,6 +197,25 @@ export default function RelawanSosPage() {
                         }`}>
                           {v.source === 'tolongin' ? 'Sobat Tolongin' : 'Mandiri SOS'}
                         </span>
+                      </td>
+                      <td className="py-3 px-3 text-center">
+                        {v.is_verified === false ? (
+                          <button
+                            onClick={() => verify(v.id, true)}
+                            title="Periksa datanya dulu, lalu setujui"
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200 transition"
+                          >
+                            <Clock className="w-3 h-3" />Setujui
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => { if (v.source !== 'tolongin' && window.confirm(`Cabut verifikasi "${v.name}"? Relawan tidak akan tampil di radar sampai disetujui lagi.`)) verify(v.id, false); }}
+                            title={v.source === 'tolongin' ? 'Relawan Sobat sudah terverifikasi lewat Tolongin' : 'Cabut verifikasi'}
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200"
+                          >
+                            <BadgeCheck className="w-3 h-3" />Terverifikasi
+                          </button>
+                        )}
                       </td>
                       <td className="py-3 px-3 text-center">
                         <button

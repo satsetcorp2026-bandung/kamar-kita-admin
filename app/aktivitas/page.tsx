@@ -83,6 +83,7 @@ function describe(r: Row): { label: string; tone: string; who: string; info: str
     const k = str(r.target_id);
     return { label: 'Pengaturan diubah', tone: blue, who: KEY_LABEL[k] ?? k, info: `${settingVal(k, d.old)} menjadi ${settingVal(k, d.new)}` };
   }
+  if (a === 'sos_volunteer_verify') return { label: d.approve === false ? 'Verifikasi relawan SOS dicabut' : 'Relawan SOS disetujui', tone: d.approve === false ? amber : green, who: str(r.target_id).slice(0, 8), info: '' };
   if (a.startsWith('sos_')) return { label: `SOS ditandai ${a.replace('sos_', '')}`, tone: red, who: str(r.target_id).slice(0, 8), info: '' };
   if (a === 'report_status') return { label: 'Status laporan pengguna diubah', tone: blue, who: name !== '-' ? name : str(r.target_id).slice(0, 8), info: str(d.p_status) };
   if (a === 'tolongin_badge') return { label: 'Lencana Terbaik diperpanjang', tone: green, who: name !== '-' ? name : str(r.target_id).slice(0, 8), info: `${str(d.p_months)} bulan` };
