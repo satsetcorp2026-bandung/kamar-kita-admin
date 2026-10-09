@@ -16,6 +16,7 @@ import {
   ExternalLink,
   AlertTriangle,
   FileText,
+  Download,
 } from 'lucide-react';
 
 type VerifStatus = 'pending' | 'approved' | 'rejected';
@@ -74,7 +75,91 @@ interface TripRow {
   created_at: string;
 }
 
-type Tab = 'verifikasi' | 'kendaraan' | 'saldo' | 'trip';
+type Tab = 'verifikasi' | 'kendaraan' | 'saldo' | 'trip' | 'riwayat';
+
+interface HistItem {
+  kind: 'report' | 'action' | 'doc';
+  report_id: string | null;
+  at: string;
+  action: string | null;
+  actor_name: string | null;
+  reporter_name: string | null;
+  reason: string | null;
+  note: string | null;
+  status: string | null;
+  context: string | null;
+  context_id: string | null;
+  detail: Record<string, unknown> | null;
+}
+
+interface HistData {
+  summary: { reports_total: number; reports_open: number; pauses: number; blocks: number; unblocks: number; blocked_now: boolean };
+  items: HistItem[];
+  total: number;
+  has_more: boolean;
+  names_visible: boolean;
+}
+
+type HistFilter = 'all' | 'report' | 'action' | 'doc';
+
+const REPORT_STATUS: Record<string, string> = { open: 'Belum ditinjau', reviewed: 'Sudah ditinjau', closed: 'Selesai' };
+const REPORT_CONTEXT: Record<string, string> = {
+  tolongin_chat: 'Chat Tolongin',
+  order_chat: 'Chat perjalanan',
+};
+
+function sv(v: unknown): string {
+  return v === null || v === undefined ? '' : String(v);
+}
+
+function histText(it: HistItem): { title: string; body: string; tone: 'red' | 'amber' | 'green' | 'slate' } {
+  const d = it.detail ?? {};
+  const a = it.action ?? '';
+  if (it.kind === 'report') {
+    return {
+      title: `Dilaporkan${it.reporter_name ? ` oleh ${it.reporter_name}` : ''}`,
+      body: `Alasan: ${it.reason ?? '-'}${it.note ? `. Catatan: ${it.note}` : ''}`,
+      tone: it.status === 'open' ? 'red' : 'amber',
+    };
+  }
+  if (a === 'driver_deactivate')
+    return {
+      title: d.kind === 'permanent' ? 'Diblokir permanen sebagai mitra' : 'Dinonaktifkan sementara',
+      body: `Alasan: ${sv(d.label)}${d.note ? `. ${sv(d.note)}` : ''}`,
+      tone: 'red',
+    };
+  if (a === 'driver_unban') return { title: 'Blokir permanen dibuka', body: `Alasan buka: ${sv(d.note)}`, tone: 'amber' };
+  if (a === 'user_block') return { title: 'Akun diblokir', body: `Alasan: ${sv(d.reason)}`, tone: 'red' };
+  if (a === 'user_unblock') return { title: 'Blokir akun dibuka', body: '', tone: 'green' };
+  if (a === 'history_export') return { title: 'Dokumen riwayat diekspor', body: '', tone: 'slate' };
+  if (a === 'driver_status_approved') return { title: 'Driver diaktifkan', body: '', tone: 'green' };
+  if (a === 'driver_status_rejected') return { title: 'Driver ditolak atau dinonaktifkan', body: '', tone: 'amber' };
+  if (a === 'driver_status_pending') return { title: 'Driver dikembalikan ke menunggu', body: '', tone: 'amber' };
+  if (a === 'driver_doc_approved') return { title: 'Dokumen disetujui', body: DOC_LABEL[sv(d.document)] ?? sv(d.document), tone: 'green' };
+  if (a === 'driver_doc_rejected')
+    return { title: 'Dokumen ditolak', body: `${DOC_LABEL[sv(d.document)] ?? sv(d.document)}. Alasan: ${sv(d.reason)}`, tone: 'red' };
+  return { title: a, body: '', tone: 'slate' };
+}
+
+const HIST_TONE: Record<'red' | 'amber' | 'green' | 'slate', string> = {
+  red: 'bg-rose-500',
+  amber: 'bg-amber-500',
+  green: 'bg-emerald-500',
+  slate: 'bg-slate-400',
+};
+
+function escHtml(t: unknown): string {
+  return String(t ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\n/g, '<br>');
+}
+
+function fmtFull(iso: string) {
+  return new Date(iso).toLocaleString('id-ID', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
 
 const DOC_LABEL: Record<string, string> = {
   ktp: 'KTP',
@@ -174,6 +259,11 @@ export default function DriversPage() {
 
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [hist, setHist] = useState<HistData | null>(null);
+  const [histFilter, setHistFilter] = useState<HistFilter>('all');
+  const [histLoadedKey, setHistLoadedKey] = useState('');
+  const [histMoreBusy, setHistMoreBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [deactOpen, setDeactOpen] = useState(false);
   const [deactReason, setDeactReason] = useState('');
   const [deactKind, setDeactKind] = useState<'temporary' | 'permanent'>('temporary');
@@ -261,7 +351,165 @@ export default function DriversPage() {
     setTopupAmount('');
     setTopupNote('');
     setDetailLoading(true);
+    setHist(null);
+    setHistFilter('all');
     setDetailKey((k) => k + 1);
+  }
+
+  const HIST_PAGE = 10;
+
+  const histKey = `${selectedId ?? ''}|${histFilter}|${detailKey}`;
+  const histLoading = tab === 'riwayat' && !!selectedId && histLoadedKey !== histKey;
+
+  useEffect(() => {
+    if (!selectedId || tab !== 'riwayat') return;
+    let alive = true;
+    const key = `${selectedId}|${histFilter}|${detailKey}`;
+    (async () => {
+      const { data, error: err } = await supabase.rpc('admin_person_history', {
+        p_user: selectedId,
+        p_filter: histFilter,
+        p_limit: HIST_PAGE,
+        p_offset: 0,
+      });
+      if (!alive) return;
+      if (err) alert(`Gagal memuat riwayat: ${err.message}. Pastikan SQL Part BK sudah dijalankan.`);
+      else setHist(data as HistData);
+      setHistLoadedKey(key);
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [selectedId, tab, histFilter, detailKey]);
+
+  async function loadMoreHist() {
+    if (!selectedId || !hist || histMoreBusy) return;
+    setHistMoreBusy(true);
+    const { data, error: err } = await supabase.rpc('admin_person_history', {
+      p_user: selectedId,
+      p_filter: histFilter,
+      p_limit: HIST_PAGE,
+      p_offset: hist.items.length,
+    });
+    setHistMoreBusy(false);
+    if (err) {
+      alert(`Gagal memuat: ${err.message}`);
+      return;
+    }
+    const more = data as HistData;
+    setHist({ ...more, items: [...hist.items, ...more.items] });
+  }
+
+  async function exportHistoryPdf() {
+    if (!selected || exporting) return;
+    // Jendela dibuka dulu (sebelum menunggu data) supaya tidak diblokir browser
+    const w = window.open('', '_blank');
+    if (!w) {
+      alert('Browser memblokir jendela baru. Izinkan pop-up untuk situs ini, lalu coba lagi.');
+      return;
+    }
+    w.document.write('<p style="font-family:sans-serif;padding:24px">Menyiapkan dokumen...</p>');
+    setExporting(true);
+    try {
+      const { data, error: err } = await supabase.rpc('admin_person_history', {
+        p_user: selected.id,
+        p_filter: 'all',
+        p_limit: 500,
+        p_offset: 0,
+      });
+      if (err) throw new Error(err.message);
+      const full = data as HistData;
+      if (!full.names_visible) throw new Error('Peranmu tidak boleh mengekspor dokumen ini.');
+
+      // Cuplikan percakapan dari laporan (maksimal 15 laporan terbaru)
+      const chats: Record<string, { sender_name: string; text: string; has_image: boolean; created_at: string }[]> = {};
+      const reports = full.items.filter((i) => i.kind === 'report' && i.report_id).slice(0, 15);
+      await Promise.all(
+        reports.map(async (r) => {
+          const res = await supabase.rpc('admin_report_messages', { p_report_id: r.report_id });
+          if (!res.error && Array.isArray(res.data)) chats[r.report_id as string] = res.data as never;
+        })
+      );
+
+      const { data: userRes } = await supabase.auth.getUser();
+      const who = userRes?.user?.email ?? 'admin';
+      await supabase.rpc('admin_log_history_export', { p_user: selected.id });
+
+      const sm = full.summary;
+      const rows = full.items
+        .map((it) => {
+          const t = histText(it);
+          const kindLabel = it.kind === 'report' ? 'Laporan' : it.kind === 'doc' ? 'Dokumen' : 'Tindakan admin';
+          const by = it.kind === 'report' ? '' : ` (oleh ${escHtml(it.actor_name)})`;
+          const meta =
+            it.kind === 'report'
+              ? `<div class="meta">Status: ${escHtml(REPORT_STATUS[it.status ?? ''] ?? it.status)}${
+                  it.context ? ` | Sumber: ${escHtml(REPORT_CONTEXT[it.context] ?? it.context)}` : ''
+                }${it.context_id ? ` | Ref: ${escHtml(it.context_id)}` : ''}</div>`
+              : '';
+          const chat = it.report_id && chats[it.report_id]?.length
+            ? `<div class="chat"><b>Cuplikan percakapan</b>${chats[it.report_id]
+                .map(
+                  (m) =>
+                    `<div>[${escHtml(fmtFull(m.created_at))}] <b>${escHtml(m.sender_name)}</b>: ${escHtml(m.text)}${
+                      m.has_image ? ' <i>(mengirim foto)</i>' : ''
+                    }</div>`
+                )
+                .join('')}</div>`
+            : '';
+          return `<tr><td class="w1">${escHtml(fmtFull(it.at))}</td><td class="w2">${kindLabel}</td><td><b>${escHtml(
+            t.title
+          )}</b>${by}<div>${escHtml(t.body)}</div>${meta}${chat}</td></tr>`;
+        })
+        .join('');
+
+      const html = `<!doctype html><html lang="id"><head><meta charset="utf-8"><title>Riwayat ${escHtml(
+        selected.full_name ?? 'Pengguna'
+      )} - PimPim</title><style>
+        @page { size: A4; margin: 16mm; }
+        body { font-family: Arial, Helvetica, sans-serif; color: #111; font-size: 12px; line-height: 1.45; }
+        h1 { font-size: 18px; margin: 0 0 2px; } h2 { font-size: 13px; margin: 18px 0 6px; border-bottom: 1px solid #999; padding-bottom: 3px; }
+        .sub { color: #555; margin-bottom: 14px; }
+        table { width: 100%; border-collapse: collapse; } td, th { border: 1px solid #bbb; padding: 6px 8px; vertical-align: top; text-align: left; }
+        th { background: #eee; } .w1 { width: 118px; white-space: nowrap; } .w2 { width: 86px; }
+        .kv td { border: none; padding: 2px 8px 2px 0; } .meta { color: #555; margin-top: 3px; font-size: 11px; }
+        .chat { margin-top: 6px; padding: 6px 8px; background: #f4f4f4; border-left: 3px solid #999; font-size: 11px; }
+        .foot { margin-top: 22px; font-size: 10.5px; color: #555; border-top: 1px solid #999; padding-top: 8px; }
+        tr { page-break-inside: avoid; }
+      </style></head><body>
+        <h1>Dokumen Riwayat Pengguna - PimPim</h1>
+        <div class="sub">Dibuat pada ${escHtml(fmtFull(new Date().toISOString()))} oleh ${escHtml(who)}</div>
+        <h2>Identitas</h2>
+        <table class="kv">
+          <tr><td>Nama</td><td>: ${escHtml(selected.full_name ?? '-')}</td></tr>
+          <tr><td>Nomor HP</td><td>: ${escHtml(selected.phone ?? '-')}</td></tr>
+          <tr><td>Peran</td><td>: Mitra ${selected.vehicle_type === 'car' ? 'Pim Car' : 'Pim Ride'}</td></tr>
+          <tr><td>Kendaraan</td><td>: ${escHtml(selected.vehicle_plate ?? '-')} ${escHtml(selected.vehicle_model ?? '')}</td></tr>
+          <tr><td>ID akun</td><td>: ${escHtml(selected.id)}</td></tr>
+          <tr><td>Status sekarang</td><td>: ${escHtml(PHASE_META[phaseOf(selected)].label)}${sm.blocked_now ? ' (akun diblokir)' : ''}</td></tr>
+        </table>
+        <h2>Ringkasan</h2>
+        <table class="kv">
+          <tr><td>Total laporan</td><td>: ${sm.reports_total} (${sm.reports_open} belum ditinjau)</td></tr>
+          <tr><td>Nonaktif sementara</td><td>: ${sm.pauses} kali</td></tr>
+          <tr><td>Diblokir permanen</td><td>: ${sm.blocks} kali</td></tr>
+          <tr><td>Blokir dibuka</td><td>: ${sm.unblocks} kali</td></tr>
+        </table>
+        <h2>Kronologi (terbaru di atas)</h2>
+        ${rows ? `<table><tr><th>Waktu</th><th>Jenis</th><th>Rincian</th></tr>${rows}</table>` : '<p>Belum ada catatan.</p>'}
+        <div class="foot">Dokumen ini dihasilkan otomatis dari sistem PimPim dan berisi data pribadi yang bersifat rahasia. Gunakan hanya untuk keperluan penanganan laporan atau permintaan resmi pihak berwenang. Setiap ekspor tercatat di log aktivitas.</div>
+      </body></html>`;
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      w.focus();
+      setTimeout(() => w.print(), 400);
+    } catch (e) {
+      w.close();
+      alert(`Gagal membuat dokumen: ${e instanceof Error ? e.message : 'tidak diketahui'}`);
+    } finally {
+      setExporting(false);
+    }
   }
 
   function reloadAll() {
@@ -619,6 +867,7 @@ export default function DriversPage() {
                   ['kendaraan', 'Kendaraan'],
                   ['saldo', 'Saldo'],
                   ['trip', 'Riwayat trip'],
+                  ['riwayat', 'Laporan dan tindakan'],
                 ] as [Tab, string][]).map(([k, label]) => (
                   <button
                     key={k}
@@ -959,6 +1208,103 @@ export default function DriversPage() {
                       </ul>
                     )}
                   </div>
+                </div>
+              ) : tab === 'riwayat' ? (
+                <div>
+                  <div className="sticky top-0 z-10 -mx-6 -mt-5 px-6 pt-4 pb-3 bg-[#f6f8fc]/95 backdrop-blur border-b border-slate-200">
+                    {hist && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {([
+                          ['Laporan', hist.summary.reports_total, hist.summary.reports_open > 0 ? `${hist.summary.reports_open} belum ditinjau` : 'semua ditinjau', hist.summary.reports_open > 0],
+                          ['Nonaktif', hist.summary.pauses, 'sementara', false],
+                          ['Diblokir', hist.summary.blocks, hist.summary.blocked_now ? 'aktif sekarang' : 'permanen', hist.summary.blocked_now],
+                          ['Dibuka', hist.summary.unblocks, 'blokir dibuka', false],
+                        ] as [string, number, string, boolean][]).map(([l, n, sub, warn]) => (
+                          <div key={l} className={`rounded-xl border px-3 py-2 ${warn ? 'border-rose-200 bg-rose-50' : 'border-white bg-white'} shadow-sm`}>
+                            <div className="text-[11px] text-slate-500">{l}</div>
+                            <div className={`text-lg font-extrabold tabular-nums ${warn ? 'text-rose-700' : 'text-slate-800'}`}>{n}</div>
+                            <div className={`text-[10.5px] ${warn ? 'text-rose-600 font-medium' : 'text-slate-400'}`}>{sub}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-3 flex items-center gap-1.5 flex-wrap">
+                      {([
+                        ['all', 'Semua'],
+                        ['report', 'Laporan'],
+                        ['action', 'Tindakan admin'],
+                        ['doc', 'Dokumen'],
+                      ] as [HistFilter, string][]).map(([k, label]) => (
+                        <button
+                          key={k}
+                          onClick={() => setHistFilter(k)}
+                          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${
+                            histFilter === k ? 'bg-[#2f7088] border-[#2f7088] text-white' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                      {hist?.names_visible && (
+                        <button
+                          onClick={exportHistoryPdf}
+                          disabled={exporting}
+                          className="ml-auto inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                        >
+                          {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                          Ekspor PDF
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {histLoading && !hist ? (
+                    <div className="py-12 flex justify-center text-slate-400">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                    </div>
+                  ) : !hist || hist.items.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-10">Belum ada catatan. Bersih.</p>
+                  ) : (
+                    <div className={`mt-4 ${histLoading ? 'opacity-60' : ''}`}>
+                      <ol className="relative border-l-2 border-slate-200 ml-2 space-y-3">
+                        {hist.items.map((it, i) => {
+                          const t = histText(it);
+                          return (
+                            <li key={`${it.at}-${i}`} className="ml-4">
+                              <span className={`absolute -left-[7px] mt-3 w-3 h-3 rounded-full border-2 border-white ${HIST_TONE[t.tone]}`} />
+                              <div className="rounded-2xl border border-white bg-white shadow-sm px-4 py-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="text-[13px] font-semibold text-slate-900">{t.title}</div>
+                                  <div className="text-[11px] text-slate-400 whitespace-nowrap">{fmtDateTime(it.at)}</div>
+                                </div>
+                                {t.body && <div className="text-xs text-slate-600 mt-1 leading-relaxed">{t.body}</div>}
+                                <div className="mt-1.5 flex flex-wrap gap-x-3 text-[11px] text-slate-400">
+                                  {it.kind !== 'report' && it.actor_name && <span>oleh {it.actor_name}</span>}
+                                  {it.kind === 'report' && it.status && <span>{REPORT_STATUS[it.status] ?? it.status}</span>}
+                                  {it.kind === 'report' && it.context && <span>{REPORT_CONTEXT[it.context] ?? it.context}</span>}
+                                </div>
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                      <div className="mt-4 flex items-center justify-center gap-3 text-xs text-slate-500">
+                        <span>
+                          Menampilkan {hist.items.length} dari {hist.total}
+                        </span>
+                        {hist.has_more && (
+                          <button
+                            onClick={loadMoreHist}
+                            disabled={histMoreBusy}
+                            className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full border border-slate-300 bg-white font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                          >
+                            {histMoreBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                            Muat lebih banyak
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div>
