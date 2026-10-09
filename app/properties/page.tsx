@@ -787,7 +787,12 @@ export default function PropertiesPage() {
                     <label className="font-semibold text-slate-700 block mb-1">Nominal dibayar (Rp)</label>
                     <input type="number" min={0} value={promoPaid} onChange={(e) => setPromoPaid(e.target.value)} className="w-full p-2 border rounded-lg" />
                   </div>
-                  <p className="text-slate-500">Diskon dihitung dari harga bulanan kost: harga normal dicoret, harga setelah diskon tampil di aplikasi. Pastikan pemilik kost memang memberi diskon ini.</p>
+                  {!(Number(promoFor.price_monthly) > 0) && !(Number(promoFor.price_yearly) > 0) && (
+                    <p className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800">
+                      Kost ini belum punya harga sewa di datanya, jadi harga dan hitungan diskon belum bisa tampil di aplikasi. Isi harga lewat tombol ubah (pensil) dulu.
+                    </p>
+                  )}
+                  <p className="text-slate-500">Diskon dihitung dari harga bulanan kost (kalau tidak ada, harga tahunan): harga normal dicoret, harga setelah diskon tampil di aplikasi. Pastikan pemilik kost memang memberi diskon ini.</p>
                   <p className="text-slate-500">Foto, lokasi, dan nomor WhatsApp diambil dari data kost, dan ikut berubah kalau data kost diubah. Iklan masuk di urutan paling bawah; geser di menu Iklan Promo Terbaik.</p>
                   <div className="flex justify-end gap-2">
                     <button onClick={() => setPromoFor(null)} className="px-4 py-2 rounded-lg border border-slate-200 font-semibold text-slate-600">Batal</button>
