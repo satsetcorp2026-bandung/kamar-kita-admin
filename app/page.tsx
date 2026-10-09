@@ -32,6 +32,11 @@ interface Overview {
   days: { day: string; total: number; completed: number }[];
   by_service: Record<string, number>;
 }
+interface DriverLite {
+  id: string; full_name: string | null; verification_status: string | null; docs_total: number; docs_pending: number;
+  created_at: string | null; updated_at: string | null;
+}
+interface ReviewItem { key: string; kind: 'report' | 'driver'; title: string; sub: string; at: string; href: string }
 interface TripLite {
   id: string; status: string; service_type: string | null; car_class: string | null;
   pickup_address: string | null; destination_address: string | null; distance_km: number | null; created_at: string;
@@ -88,6 +93,7 @@ export default function DashboardOverviewPage() {
   const [driverSummary, setDriverSummary] = useState({ pending: 0, approved: 0, online: 0 });
   const [overview, setOverview] = useState<Overview | null>(null);
   const [trips, setTrips] = useState<TripLite[]>([]);
+  const [pendingDrivers, setPendingDrivers] = useState<DriverLite[]>([]);
   const [sosTrip, setSosTrip] = useState(0);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -103,7 +109,7 @@ export default function DashboardOverviewPage() {
       const count = async (q: PromiseLike<{ count: number | null }>) => {
         try { const r = await q; return r.count ?? 0; } catch { return 0; }
       };
-      const [properties, users, preloved, sosActive, sosTotal, partnerRes, reportRes, summaryRes, driverRes, ovRes, tripRes, sosRes, roleRes] = await Promise.all([
+      const [properties, users, preloved, sosActive, sosTotal, partnerRes, reportRes, summaryRes, driverRes, ovRes, tripRes, sosRes, roleRes, drvListRes] = await Promise.all([
         count(supabase.from('properties').select('*', { count: 'exact', head: true })),
         count(supabase.from('profiles').select('*', { count: 'exact', head: true })),
         count(supabase.from('preloved_items').select('*', { count: 'exact', head: true }).eq('status', 'active')),
@@ -117,13 +123,19 @@ export default function DashboardOverviewPage() {
         supabase.rpc('admin_orders_list', { p_group: null, p_search: null, p_days: 7, p_limit: 5 }),
         supabase.rpc('admin_sos_summary'),
         supabase.rpc('my_admin_role'),
+        supabase.rpc('admin_drivers_list'),
       ]);
       if (!alive) return;
       setStats({ properties, users, preloved, sosActive, sosTotal });
       // Bila SQL Part AZ belum dijalankan, anggap Pemilik
       setRole(roleRes.error ? 'owner' : ((roleRes.data as string | null) ?? 'admin'));
       if (!partnerRes.error && partnerRes.data) setPartners(partnerRes.data as PartnerLite[]);
-      if (!reportRes.error && reportRes.data) setReports((reportRes.data as ReportLite[]).slice(0, 4));
+      if (!reportRes.error && reportRes.data) setReports(reportRes.data as ReportLite[]);
+      if (!drvListRes.error && Array.isArray(drvListRes.data)) {
+        setPendingDrivers(
+          (drvListRes.data as DriverLite[]).filter((d) => (d.verification_status ?? 'pending') === 'pending' && Number(d.docs_total) > 0)
+        );
+      }
       if (!summaryRes.error && summaryRes.data) setSummary(summaryRes.data as ReportSummary);
       if (!driverRes.error && driverRes.data) setDriverSummary(driverRes.data as { pending: number; approved: number; online: number });
       if (!ovRes.error && ovRes.data) setOverview(ovRes.data as Overview);
@@ -158,6 +170,23 @@ export default function DashboardOverviewPage() {
     { key: 'sub', label: 'Langganan Sobat habis atau hampir habis', value: subExpired + subSoon, href: '/tolongin', tone: 'bg-amber-100 text-amber-800', icon: CalendarClock },
   ];
   const totalTodo = actions.reduce((a, b) => a + b.value, 0);
+
+  const reviewItems: ReviewItem[] = [
+    ...reports.map((r) => ({
+      key: `r-${r.id}`, kind: 'report' as const,
+      title: `${r.reported_name} dilaporkan oleh ${r.reporter_name}`,
+      sub: `${CONTEXT_LABEL[r.context] ?? r.context}, ${r.reason}`,
+      at: r.created_at, href: '/laporan',
+    })),
+    ...pendingDrivers.map((d) => ({
+      key: `d-${d.id}`, kind: 'driver' as const,
+      title: `${d.full_name ?? 'Driver baru'} menunggu verifikasi`,
+      sub: `${d.docs_pending} dari ${d.docs_total} dokumen belum diperiksa`,
+      at: d.updated_at ?? d.created_at ?? new Date(0).toISOString(), href: '/drivers',
+    })),
+  ].sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+  const reviewTotal = reviewItems.length;
+  const reviewShown = reviewItems.slice(0, 6);
 
   const ov = overview;
   const diff = ov ? ov.today_orders - ov.yesterday_orders : 0;
@@ -362,25 +391,34 @@ export default function DashboardOverviewPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className={`${glass} p-5 lg:col-span-2`}>
           <div className="flex items-center justify-between mb-2">
-            <h3 className="text-sm font-extrabold text-slate-800">Laporan terbuka terbaru</h3>
-            <Link href="/laporan" className="text-xs font-bold text-[#2d6a86] inline-flex items-center gap-1">Lihat semua <ArrowUpRight className="w-3.5 h-3.5" /></Link>
+            <h3 className="text-sm font-extrabold text-slate-800">Perlu ditinjau</h3>
+            <div className="flex items-center gap-3">
+              <Link href="/laporan" className="text-xs font-bold text-[#2d6a86] inline-flex items-center gap-1">Laporan <ArrowUpRight className="w-3.5 h-3.5" /></Link>
+              <Link href="/drivers" className="text-xs font-bold text-[#2d6a86] inline-flex items-center gap-1">Driver <ArrowUpRight className="w-3.5 h-3.5" /></Link>
+            </div>
           </div>
-          {reports.length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">{loading ? 'Memuat...' : 'Tidak ada laporan terbuka.'}</p>
+          {reviewShown.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-500">{loading ? 'Memuat...' : 'Tidak ada yang menunggu. Bersih.'}</p>
           ) : (
             <ul>
-              {reports.map((r) => (
-                <li key={r.id} className="border-b border-slate-900/5 last:border-0">
-                  <Link href="/laporan" className="flex items-center gap-3 py-2.5 hover:opacity-80 transition">
+              {reviewShown.map((r) => (
+                <li key={r.key} className="border-b border-slate-900/5 last:border-0">
+                  <Link href={r.href} className="flex items-center gap-3 py-2.5 hover:opacity-80 transition">
+                    <span className={`text-[10.5px] font-extrabold rounded-full px-2.5 py-0.5 shrink-0 ${r.kind === 'report' ? 'bg-rose-100 text-rose-800' : 'bg-sky-100 text-sky-800'}`}>
+                      {r.kind === 'report' ? 'Laporan' : 'Driver'}
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-semibold text-slate-800 truncate">{r.reported_name} <span className="font-normal text-slate-500">dilaporkan oleh</span> {r.reporter_name}</div>
-                      <div className="text-xs text-slate-500 truncate">{CONTEXT_LABEL[r.context] ?? r.context}, {r.reason}</div>
+                      <div className="text-[13px] font-semibold text-slate-800 truncate">{r.title}</div>
+                      <div className="text-xs text-slate-500 truncate">{r.sub}</div>
                     </div>
-                    <span className="text-[11px] text-slate-500 shrink-0">{timeAgo(r.created_at, nowMs)}</span>
+                    <span className="text-[11px] text-slate-500 shrink-0">{timeAgo(r.at, nowMs)}</span>
                   </Link>
                 </li>
               ))}
             </ul>
+          )}
+          {reviewTotal > reviewShown.length && (
+            <p className="pt-2 text-xs text-slate-500">dan {reviewTotal - reviewShown.length} lagi di halaman masing-masing</p>
           )}
         </section>
 
