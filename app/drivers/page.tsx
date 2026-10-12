@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   FileText,
   Download,
+  MapPin,
 } from 'lucide-react';
 
 type VerifStatus = 'pending' | 'approved' | 'rejected';
@@ -46,6 +47,9 @@ interface Driver {
   deactivation_reason: string | null;
   deactivation_note: string | null;
   deactivated_at: string | null;
+  area_status: 'aktif' | 'menunggu_wilayah' | null;
+  registration_area: string | null;
+  selfie_url: string | null;
 }
 
 interface DriverDoc {
@@ -162,6 +166,7 @@ function fmtFull(iso: string) {
 }
 
 const DOC_LABEL: Record<string, string> = {
+  selfie: 'Foto Selfie',
   ktp: 'KTP',
   sim: 'SIM',
   stnk: 'STNK',
@@ -234,6 +239,37 @@ function tint(tone: string) {
   if (tone.includes('emerald')) return 'from-[#c6ebe1] to-[#98d4c9]';
   if (tone.includes('blue')) return 'from-[#d9e8f4] to-[#b6d0e4]';
   return 'from-[#e8edf4] to-[#cfd9e6]';
+}
+
+// Foto selfie yang disetujui dipublikasikan dari bucket privat `driver-kyc` ke bucket
+// publik `driver-public` (lihat SQL Part CH), lalu linknya disimpan di `drivers.selfie_url`
+// lewat RPC `admin_set_driver_selfie_url`. Dipanggil otomatis setelah admin menekan "Setujui"
+// untuk dokumen jenis 'selfie'. Kalau publikasi gagal, dokumen tetap tercatat disetujui;
+// admin cukup tekan "Setujui" sekali lagi untuk mencoba ulang publikasinya.
+// Catatan: fungsi ini sengaja ditaruh DI LUAR komponen (bukan di dalam DriversPage) karena
+// memakai Date.now() untuk cache-busting; eslint react-hooks/purity melarang pemanggilan
+// fungsi impure (Date.now, Math.random, dst) di dalam body komponen/fungsi yang didefinisikan
+// di dalamnya, walau fungsinya async dan tidak dipanggil langsung saat render.
+async function publishSelfie(driverId: string, kycPath: string) {
+  const { data: fileBlob, error: dlErr } = await supabase.storage.from('driver-kyc').download(kycPath);
+  if (dlErr || !fileBlob) throw new Error(`Gagal mengambil foto selfie dari penyimpanan: ${dlErr?.message ?? 'tidak diketahui'}`);
+
+  const ext = (kycPath.split('.').pop() || 'jpg').toLowerCase();
+  const publicPath = `selfies/${driverId}.${ext}`;
+  const { error: upErr } = await supabase.storage.from('driver-public').upload(publicPath, fileBlob, {
+    contentType: `image/${ext === 'png' ? 'png' : 'jpeg'}`,
+    upsert: true,
+  });
+  if (upErr) throw new Error(`Gagal menyimpan foto selfie ke bucket publik: ${upErr.message}`);
+
+  const { data: pub } = supabase.storage.from('driver-public').getPublicUrl(publicPath);
+  const publicUrl = `${pub.publicUrl}?v=${Date.now()}`; // cache-bust supaya foto lama tidak nyangkut di HP
+
+  const { error: rpcErr } = await supabase.rpc('admin_set_driver_selfie_url', {
+    p_driver: driverId,
+    p_url: publicUrl,
+  });
+  if (rpcErr) throw new Error(`Gagal menyimpan link selfie ke profil driver: ${rpcErr.message}`);
 }
 
 export default function DriversPage() {
@@ -525,12 +561,34 @@ export default function DriversPage() {
       p_status: status,
       p_reason: reason ?? null,
     });
-    setBusy(false);
     const res = data as { success?: boolean; message?: string } | null;
     if (err || !res?.success) {
+      setBusy(false);
       alert(`Gagal: ${err?.message ?? res?.message ?? 'tidak diketahui'}`);
       return;
     }
+
+    if (type === 'selfie' && status === 'approved') {
+      const kycDoc = docs.find((d) => d.document_type === 'selfie');
+      if (kycDoc?.file_url && !kycDoc.file_url.startsWith('http')) {
+        try {
+          await publishSelfie(driver.id, kycDoc.file_url);
+        } catch (e) {
+          setBusy(false);
+          alert(
+            `Dokumen selfie sudah disetujui, tapi gagal dipublikasikan ke foto profil penumpang: ${
+              e instanceof Error ? e.message : 'tidak diketahui'
+            }. Coba tekan "Setujui" sekali lagi.`
+          );
+          setRejecting(null);
+          setRejectReason('');
+          reloadAll();
+          return;
+        }
+      }
+    }
+
+    setBusy(false);
     setRejecting(null);
     setRejectReason('');
     reloadAll();
@@ -812,6 +870,14 @@ export default function DriversPage() {
                         <span className={`inline-flex text-[11px] font-semibold px-2 py-1 rounded-full border ${PHASE_META[phaseOf(d)].chip}`}>
                           {PHASE_META[phaseOf(d)].label}
                         </span>
+                        {d.area_status === 'menunggu_wilayah' && (
+                          <div
+                            className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold px-2 py-0.5 rounded-full border border-orange-200 bg-orange-50 text-orange-700"
+                            title={d.registration_area ?? 'Wilayah belum terdeteksi'}
+                          >
+                            <MapPin className="w-3 h-3" /> Tunggu wilayah
+                          </div>
+                        )}
                       </td>
                       <td className="px-3 py-3.5 text-xs">
                         <span className="text-slate-700 font-medium">
@@ -889,6 +955,28 @@ export default function DriversPage() {
                 </div>
               ) : tab === 'verifikasi' ? (
                 <div className="space-y-4">
+                  {selected.area_status === 'menunggu_wilayah' && (
+                    <div className="flex items-start gap-2.5 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-xs text-orange-800 leading-relaxed">
+                      <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
+                      <div>
+                        <div className="font-semibold">Lokasi saat daftar di luar wilayah layanan aktif</div>
+                        <div className="mt-0.5">
+                          Wilayah terdeteksi: {selected.registration_area || 'tidak terdeteksi (izin lokasi ditolak/gagal)'}. Dokumen tetap bisa diperiksa dan
+                          disetujui seperti biasa &mdash; status ini hanya pengingat bahwa driver belum otomatis aktif sampai wilayahnya dibuka.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                  {selected.selfie_url && (
+                    <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs text-emerald-800">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={selected.selfie_url} alt="Foto selfie terpublikasi" className="w-10 h-10 rounded-full object-cover border border-white shadow-sm" />
+                      <div>
+                        <div className="font-semibold">Foto selfie sudah dipublikasikan</div>
+                        <div className="mt-0.5 text-emerald-700/80">Ini foto yang tampil ke penumpang saat driver mendapat order.</div>
+                      </div>
+                    </div>
+                  )}
                   {docs.length === 0 ? (
                     <p className="text-sm text-slate-400 text-center py-10">Driver ini belum mengunggah dokumen.</p>
                   ) : (
