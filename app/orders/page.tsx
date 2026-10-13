@@ -15,6 +15,7 @@ import {
   Phone,
   MapPin,
   Navigation,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface OrderRow {
@@ -66,8 +67,12 @@ const STATUS_LABEL: Record<string, { label: string; chip: string }> = {
   completed: { label: 'Selesai', chip: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   cancelled_by_passenger: { label: 'Batal (penumpang)', chip: 'bg-rose-50 text-rose-700 border-rose-200' },
   cancelled_by_driver: { label: 'Batal (driver)', chip: 'bg-rose-50 text-rose-700 border-rose-200' },
+  cancelled_by_admin: { label: 'Dibatalkan admin', chip: 'bg-rose-50 text-rose-700 border-rose-200' },
   expired: { label: 'Kedaluwarsa', chip: 'bg-slate-100 text-slate-600 border-slate-200' },
 };
+
+// Status yang dianggap "nyangkut" dan boleh dibatalkan paksa oleh admin
+const ACTIVE_STUCK_STATUSES = ['driver_assigned', 'driver_arrived', 'in_trip'];
 
 function rp(n: number | null | undefined) {
   return 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.round(Number(n ?? 0)));
@@ -108,6 +113,11 @@ export default function OrdersPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+
+  const [forceCancelOpen, setForceCancelOpen] = useState(false);
+  const [forceCancelNote, setForceCancelNote] = useState('');
+  const [forceCancelBusy, setForceCancelBusy] = useState(false);
+  const [forceCancelError, setForceCancelError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -163,7 +173,7 @@ export default function OrdersPage() {
   useEffect(() => {
     if (!selectedId) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setSelectedId(null);
+      if (e.key === 'Escape') closeOrderDrawer();
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -173,6 +183,43 @@ export default function OrdersPage() {
     setDetail(null);
     setDetailLoading(true);
     setSelectedId(o.id);
+  }
+
+  function closeOrderDrawer() {
+    setSelectedId(null);
+    setForceCancelOpen(false);
+    setForceCancelNote('');
+    setForceCancelError(null);
+  }
+
+  async function submitForceCancel() {
+    if (!selectedId) return;
+    if (forceCancelNote.trim().length < 3) {
+      setForceCancelError('Tulis catatan alasan dulu ya (minimal beberapa kata).');
+      return;
+    }
+    setForceCancelBusy(true);
+    setForceCancelError(null);
+    const { data, error } = await supabase.rpc('admin_force_cancel_order', {
+      p_order_id: selectedId,
+      p_note: forceCancelNote.trim(),
+    });
+    setForceCancelBusy(false);
+    if (error) {
+      setForceCancelError(error.message);
+      return;
+    }
+    const result = data as { success: boolean; message?: string } | null;
+    if (!result?.success) {
+      setForceCancelError(result?.message || 'Gagal membatalkan pesanan.');
+      return;
+    }
+    setForceCancelOpen(false);
+    setForceCancelNote('');
+    setReloadKey((k) => k + 1);
+    // Segarkan detail yang sedang terbuka supaya status langsung berubah
+    const { data: fresh } = await supabase.rpc('admin_order_detail', { p_order_id: selectedId });
+    setDetail((fresh as Detail) ?? null);
   }
 
   const visible = useMemo(
@@ -379,7 +426,7 @@ export default function OrdersPage() {
 
       {selectedId && (
         <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px]" onClick={() => setSelectedId(null)} />
+          <div className="absolute inset-0 bg-slate-950/40 backdrop-blur-[2px]" onClick={closeOrderDrawer} />
           <aside className="relative w-full max-w-xl bg-[#f6f8fc] h-full shadow-2xl flex flex-col sm:rounded-l-3xl overflow-hidden">
             <div className="px-6 h-16 border-b border-slate-200 bg-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-3 min-w-0">
@@ -394,7 +441,7 @@ export default function OrdersPage() {
                   </span>
                 )}
               </div>
-              <button onClick={() => setSelectedId(null)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Tutup">
+              <button onClick={closeOrderDrawer} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100" aria-label="Tutup">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -548,6 +595,57 @@ export default function OrdersPage() {
                     <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
                       Ada {detail.reports} laporan dari chat pesanan ini. Buka menu Laporan Pengguna untuk membaca isinya.
                     </div>
+                  )}
+
+                  {o && ACTIVE_STUCK_STATUSES.includes(String(o.status)) && (
+                    <section className="rounded-2xl border border-rose-200 bg-rose-50 p-4">
+                      <div className="flex items-center gap-2 text-sm font-bold text-rose-700">
+                        <ShieldAlert className="w-4 h-4" /> Pesanan nyangkut?
+                      </div>
+                      <p className="text-xs text-rose-700/90 mt-1">
+                        Dipakai hanya kalau pesanan ini macet/ditinggal driver (HP mati, lupa diselesaikan, dll) dan tidak bisa diselesaikan sendiri dari aplikasi. Tindakan ini membatalkan pesanan secara paksa dan tercatat sebagai dibatalkan admin.
+                      </p>
+
+                      {!forceCancelOpen ? (
+                        <button
+                          onClick={() => setForceCancelOpen(true)}
+                          className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold"
+                        >
+                          Batalkan paksa (admin)
+                        </button>
+                      ) : (
+                        <div className="mt-3 space-y-2">
+                          <textarea
+                            value={forceCancelNote}
+                            onChange={(e) => setForceCancelNote(e.target.value)}
+                            placeholder="Catatan alasan pembatalan (wajib), contoh: driver tidak merespons &gt; 1 jam, dikonfirmasi lewat telepon"
+                            rows={3}
+                            className="w-full text-sm rounded-xl border border-rose-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500/30"
+                          />
+                          {forceCancelError && <div className="text-xs text-rose-700">{forceCancelError}</div>}
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={submitForceCancel}
+                              disabled={forceCancelBusy}
+                              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold disabled:opacity-60"
+                            >
+                              {forceCancelBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                              Konfirmasi batalkan
+                            </button>
+                            <button
+                              onClick={() => {
+                                setForceCancelOpen(false);
+                                setForceCancelError(null);
+                              }}
+                              disabled={forceCancelBusy}
+                              className="px-4 py-2 rounded-full bg-white border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                            >
+                              Batal
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </section>
                   )}
                 </>
               )}

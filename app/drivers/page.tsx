@@ -955,7 +955,7 @@ export default function DriversPage() {
                 </div>
               ) : tab === 'verifikasi' ? (
                 <div className="space-y-4">
-                  {selected.area_status === 'menunggu_wilayah' && (
+                  {selected.area_status === 'menunggu_wilayah' ? (
                     <div className="flex items-start gap-2.5 rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-xs text-orange-800 leading-relaxed">
                       <MapPin className="w-4 h-4 mt-0.5 shrink-0" />
                       <div>
@@ -963,6 +963,17 @@ export default function DriversPage() {
                         <div className="mt-0.5">
                           Wilayah terdeteksi: {selected.registration_area || 'tidak terdeteksi (izin lokasi ditolak/gagal)'}. Dokumen tetap bisa diperiksa dan
                           disetujui seperti biasa &mdash; status ini hanya pengingat bahwa driver belum otomatis aktif sampai wilayahnya dibuka.
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-start gap-2.5 rounded-2xl border border-white bg-white shadow-sm px-4 py-3 text-xs text-slate-600 leading-relaxed">
+                      <MapPin className="w-4 h-4 mt-0.5 shrink-0 text-slate-400" />
+                      <div>
+                        <div className="font-semibold text-slate-800">Wilayah saat daftar</div>
+                        <div className="mt-0.5">
+                          {selected.registration_area || 'Tidak terdeteksi (izin lokasi ditolak/gagal dibaca saat daftar)'}
+                          {selected.registration_area && <span className="text-emerald-600 font-medium"> &mdash; dalam cakupan layanan aktif</span>}
                         </div>
                       </div>
                     </div>
