@@ -34,6 +34,7 @@ import {
   Lock,
   Megaphone,
   Shirt,
+  ClipboardCheck,
 } from 'lucide-react';
 
 type Role = 'owner' | 'admin' | 'cs';
@@ -67,6 +68,7 @@ const navGroups: NavGroup[] = [
     label: 'Layanan',
     items: [
       { name: 'Hunian (Kost & Sewa)', href: '/properties', icon: Building2, roles: ['owner', 'admin'] },
+      { name: 'Survei Hunian', href: '/survei-hunian', icon: ClipboardCheck, roles: ['owner', 'admin'] },
       { name: 'Sobat Tolongin', href: '/tolongin', icon: HandHeart, roles: ['owner', 'admin'] },
       { name: 'Laundry', href: '/laundry', icon: Shirt, roles: ['owner', 'admin'] },
       { name: 'Preloved', href: '/preloved', icon: ShoppingBag, roles: ['owner', 'admin'] },
