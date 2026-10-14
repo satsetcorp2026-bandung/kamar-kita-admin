@@ -130,6 +130,9 @@ export default function PropertiesPage() {
   // Modal Edit Hunian
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [editFormData, setEditFormData] = useState<Partial<Property>>({});
+  const [editPhotos, setEditPhotos] = useState<string[]>([]);
+  const [uploadingEditPhoto, setUploadingEditPhoto] = useState(false);
+  const [editUploadText, setEditUploadText] = useState('');
   const [savingEdit, setSavingEdit] = useState(false);
 
   const [promoNow] = useState(() => Date.now());
@@ -385,21 +388,113 @@ export default function PropertiesPage() {
       longitude: p.longitude,
       is_popular: p.is_popular,
     });
+    // Foto: pakai daftar photos; kalau kosong, pakai foto utama
+    const daftarFoto = (p.photos && p.photos.length > 0 ? p.photos : [p.image_url]).filter(Boolean);
+    setEditPhotos(daftarFoto);
+    setUploadingEditPhoto(false);
+    setEditUploadText('');
+  };
+
+  // Foto di modal Ubah: tambah dari laptop
+  const handleEditFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const remainingSlots = 10 - editPhotos.length;
+    if (remainingSlots <= 0) {
+      alert('Maksimal 10 foto untuk satu hunian.');
+      e.target.value = '';
+      return;
+    }
+
+    const filesToUpload = Array.from(files).slice(0, remainingSlots);
+    const oversizedFiles = filesToUpload.filter((file) => file.size > MAX_FILE_SIZE_BYTES);
+    if (oversizedFiles.length > 0) {
+      alert(`Terdapat ${oversizedFiles.length} foto melebihi batas 2 MB.`);
+      e.target.value = '';
+      return;
+    }
+
+    setUploadingEditPhoto(true);
+    const newUploadedUrls: string[] = [];
+    let gagal = 0;
+
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const file = filesToUpload[i];
+      setEditUploadText(`Mengunggah (${i + 1}/${filesToUpload.length})...`);
+
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+      const fileName = `${Date.now()}_${Math.floor(Math.random() * 10000)}.${ext}`;
+      const filePath = `properties/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('kamar-kita')
+        .upload(filePath, file, {
+          contentType: file.type,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        gagal += 1;
+        continue;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('kamar-kita')
+        .getPublicUrl(filePath);
+
+      if (publicUrlData?.publicUrl) {
+        newUploadedUrls.push(publicUrlData.publicUrl);
+      }
+    }
+
+    setEditPhotos((prev) => [...prev, ...newUploadedUrls]);
+    setUploadingEditPhoto(false);
+    setEditUploadText('');
+    e.target.value = '';
+    if (gagal > 0) alert(`${gagal} foto gagal diunggah. Coba lagi.`);
+  };
+
+  const handleRemoveEditPhoto = (indexToRemove: number) => {
+    setEditPhotos((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  // Jadikan foto ini foto utama (dipindah ke urutan pertama)
+  const handleMakeMainEditPhoto = (index: number) => {
+    setEditPhotos((prev) => {
+      const next = [...prev];
+      const [dipilih] = next.splice(index, 1);
+      return [dipilih, ...next];
+    });
   };
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProperty) return;
 
+    if (editPhotos.length === 0) {
+      alert('Minimal harus ada 1 foto hunian.');
+      return;
+    }
+    if (uploadingEditPhoto) {
+      alert('Tunggu sampai unggah foto selesai.');
+      return;
+    }
+
     setSavingEdit(true);
+    const payload = {
+      ...editFormData,
+      photos: editPhotos,
+      image_url: editPhotos[0],
+    };
     const { error } = await supabase
       .from('properties')
-      .update(editFormData)
+      .update(payload)
       .eq('id', editingProperty.id);
 
     if (!error) {
       setProperties(properties.map(item => 
-        item.id === editingProperty.id ? { ...item, ...editFormData } as Property : item
+        item.id === editingProperty.id ? { ...item, ...payload } as Property : item
       ));
       setEditingProperty(null);
     } else {
@@ -927,6 +1022,68 @@ export default function PropertiesPage() {
             </div>
 
             <form onSubmit={handleSaveEdit} className="p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Foto hunian: tambah, hapus, jadikan utama */}
+              <div>
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="font-semibold text-slate-700">Foto Hunian</label>
+                  <span className="text-[11px] font-bold text-slate-400">{editPhotos.length}/10 foto</span>
+                </div>
+
+                {editPhotos.length > 0 && (
+                  <div className="grid grid-cols-5 gap-2 mb-2.5">
+                    {editPhotos.map((url, idx) => (
+                      <div key={`${url}-${idx}`} className="relative rounded-lg overflow-hidden border border-slate-200 aspect-square bg-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={url} alt={`foto-${idx + 1}`} className="w-full h-full object-cover" />
+                        {idx === 0 && (
+                          <span className="absolute bottom-1 left-1 bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+                            Utama
+                          </span>
+                        )}
+                        {idx > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => handleMakeMainEditPhoto(idx)}
+                            title="Jadikan foto utama"
+                            className="absolute bottom-1 left-1 bg-white/90 text-amber-600 rounded-full p-1 shadow hover:bg-white"
+                          >
+                            <Star className="w-3 h-3" />
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEditPhoto(idx)}
+                          title="Hapus foto ini"
+                          className="absolute top-1 right-1 bg-rose-600 text-white rounded-full p-1 opacity-90 hover:opacity-100 shadow transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <label className={`border-2 border-dashed border-blue-300 rounded-xl p-2.5 flex items-center justify-center gap-2 cursor-pointer bg-blue-50/40 hover:bg-blue-50 transition-all ${
+                  uploadingEditPhoto || editPhotos.length >= 10 ? 'opacity-50 pointer-events-none' : ''
+                }`}>
+                  <Upload className="w-4 h-4 text-blue-600" />
+                  <span className="text-xs font-bold text-blue-600">
+                    {uploadingEditPhoto ? editUploadText : '+ Tambah Foto Dari Laptop (Maks. 2MB)'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleEditFileUpload}
+                    className="hidden"
+                    disabled={uploadingEditPhoto || editPhotos.length >= 10}
+                  />
+                </label>
+                <p className="text-[10px] text-slate-500 mt-1.5">
+                  Foto pertama adalah foto utama. Ikon bintang menjadikan sebuah foto sebagai foto utama. Perubahan foto baru berlaku setelah menekan Simpan Perubahan.
+                </p>
+              </div>
+
               <div>
                 <label className="font-semibold text-slate-700 block mb-1">Nama Hunian</label>
                 <input
@@ -1058,7 +1215,7 @@ export default function PropertiesPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={savingEdit}
+                  disabled={savingEdit || uploadingEditPhoto}
                   className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
                 >
                   {savingEdit ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
