@@ -61,6 +61,34 @@ const TEMPLATES: { category: string; amount: number; note: string }[] = [
   { category: 'pemasaran', amount: 500000, note: 'Pemasaran bulanan' },
 ];
 
+// Estimasi PPh Final UMKM (PP 23/2018): 0,5% dari OMZET bulan itu (bukan dari laba).
+// Untuk badan usaha (PT), skema final ini cuma boleh dipakai maksimal 3 tahun pajak
+// sejak terdaftar. PT ini berdiri Mei 2026, jadi tahun pajak final-nya: 2026, 2027, 2028.
+// Mulai tahun pajak 2029 wajib pindah ke tarif normal (dihitung dari laba, bukan omzet lagi).
+// Ini SEMUA cuma estimasi buat pemantauan internal, bukan angka resmi buat lapor SPT —
+// selalu dicek ulang ke konsultan pajak / DJP sebelum benar-benar menyetor atau melapor.
+const PPH_FINAL_RATE = 0.005;
+const PT_TAHUN_BERDIRI = 2026;
+const PPH_FINAL_TAHUN_TERAKHIR = PT_TAHUN_BERDIRI + 2;
+
+function pphFinalEstimasi(omzet: number) {
+  return omzet * PPH_FINAL_RATE;
+}
+function tahunPajakDariMonth(monthIso: string) {
+  return new Date(monthIso + 'T00:00:00').getFullYear();
+}
+function jatuhTempoPajak(monthIso: string) {
+  const d = new Date(monthIso + 'T00:00:00');
+  d.setMonth(d.getMonth() + 1);
+  d.setDate(15);
+  return d;
+}
+function hariLagi(target: Date) {
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  const t = new Date(target); t.setHours(0, 0, 0, 0);
+  return Math.round((t.getTime() - now.getTime()) / 86400000);
+}
+
 function rp(n: number | null | undefined) {
   const v = Math.round(Number(n ?? 0));
   return (v < 0 ? '-Rp ' : 'Rp ') + new Intl.NumberFormat('id-ID').format(Math.abs(v));
@@ -272,6 +300,38 @@ export default function KeuanganPage() {
             <Card title="Total pengeluaran" value={rp(summary.expense_total)} sub={delta(summary.expense_total, summary.prev_expense) ?? undefined} />
             <Card title="Laba bersih (estimasi)" value={rp(summary.net)} hero={summary.net >= 0} tone={summary.net >= 0 ? 'good' : 'bad'} sub={delta(summary.net, summary.prev_net) ?? undefined} />
             <Card title="Margin" value={summary.income_total > 0 ? ((summary.net / summary.income_total) * 100).toFixed(0) + '%' : '-'} sub="Laba dibagi pendapatan" />
+          </section>
+
+          <section className="bg-sky-50/90 border border-sky-200 rounded-3xl p-5">
+            <h3 className="text-sm font-semibold text-sky-900">Estimasi Pajak (PPh Final UMKM 0,5%)</h3>
+            <p className="text-xs text-sky-800 mt-1">
+              Dihitung 0,5% dari omzet bulan ini (bukan dari laba). Untuk PT, skema final ini cuma
+              berlaku maksimal 3 tahun pajak sejak terdaftar — PT ini berdiri {PT_TAHUN_BERDIRI}, jadi
+              berlaku sampai akhir tahun pajak {PPH_FINAL_TAHUN_TERAKHIR}. Setelah itu wajib pindah ke
+              tarif normal berdasarkan laba. Angka ini estimasi kasar untuk pemantauan, bukan angka
+              resmi untuk lapor SPT — selalu cek ke konsultan pajak sebelum menyetor.
+            </p>
+            {tahunPajakDariMonth(month) > PPH_FINAL_TAHUN_TERAKHIR && (
+              <p className="text-xs font-semibold text-amber-700 mt-2">
+                Bulan ini sudah masuk tahun pajak {tahunPajakDariMonth(month)} — kemungkinan skema
+                final 0,5% sudah tidak berlaku lagi untuk PT ini, segera cek ke konsultan pajak.
+              </p>
+            )}
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+              <Card title="Omzet bulan ini" value={rp(summary.income_total)} />
+              <Card title="Estimasi PPh Final (0,5%)" value={rp(pphFinalEstimasi(summary.income_total))} sub="Dari omzet, bukan laba" />
+              <Card
+                title="Jatuh tempo setor"
+                value={jatuhTempoPajak(month).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                sub={
+                  isCurrentMonth
+                    ? (hariLagi(jatuhTempoPajak(month)) >= 0
+                        ? `${hariLagi(jatuhTempoPajak(month))} hari lagi`
+                        : `Lewat ${Math.abs(hariLagi(jatuhTempoPajak(month)))} hari`)
+                    : undefined
+                }
+              />
+            </div>
           </section>
 
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
