@@ -160,7 +160,7 @@ function StatCard({
     violet: 'from-[#e8f0f7] to-[#cfdeea]',
     slate: 'from-[#e8f0f7] to-[#cfdeea]',
   };
-  const color = hero ? 'text-white' : tone === 'green' ? 'text-emerald-900' : tone === 'rose' ? 'text-rose-900' : 'text-slate-800';
+  const color = hero ? 'text-white' : tone === 'green' ? 'text-emerald-900' : 'text-slate-800';
   const sub = hero ? 'text-white/80' : 'text-slate-600';
   return (
     <div className={`rounded-[22px] p-5 bg-gradient-to-br ${bg[tone]} shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)] flex items-start gap-3`}>
