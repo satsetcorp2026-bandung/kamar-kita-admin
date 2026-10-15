@@ -132,6 +132,12 @@ function histText(it: HistItem): { title: string; body: string; tone: 'red' | 'a
       body: `Alasan: ${sv(d.label)}${d.note ? `. ${sv(d.note)}` : ''}`,
       tone: 'red',
     };
+  if (a === 'driver_vehicle_change')
+    return {
+      title: 'Kendaraan diganti',
+      body: `${sv(d.old_plate)} ${sv(d.old_model)} menjadi ${sv(d.new_plate)} ${sv(d.new_model)}. Catatan: ${sv(d.note)}`,
+      tone: 'amber',
+    };
   if (a === 'driver_unban') return { title: 'Blokir permanen dibuka', body: `Alasan buka: ${sv(d.note)}`, tone: 'amber' };
   if (a === 'user_block') return { title: 'Akun diblokir', body: `Alasan: ${sv(d.reason)}`, tone: 'red' };
   if (a === 'user_unblock') return { title: 'Blokir akun dibuka', body: '', tone: 'green' };
@@ -304,6 +310,11 @@ export default function DriversPage() {
   const [deactReason, setDeactReason] = useState('');
   const [deactKind, setDeactKind] = useState<'temporary' | 'permanent'>('temporary');
   const [deactNote, setDeactNote] = useState('');
+  const [vehOpen, setVehOpen] = useState(false);
+  const [vehPlate, setVehPlate] = useState('');
+  const [vehModel, setVehModel] = useState('');
+  const [vehNote, setVehNote] = useState('');
+  const [vehReupload, setVehReupload] = useState(true);
   const [banOpen, setBanOpen] = useState(false);
   const [banConfirm, setBanConfirm] = useState('');
   const [banNote, setBanNote] = useState('');
@@ -618,6 +629,37 @@ export default function DriversPage() {
       alert(`Gagal: ${err?.message ?? res?.message ?? 'tidak diketahui'}`);
       return;
     }
+    reloadAll();
+  }
+
+  function openVehicleChange() {
+    if (!selected) return;
+    setVehPlate(selected.vehicle_plate ?? '');
+    setVehModel(selected.vehicle_model ?? '');
+    setVehNote('');
+    setVehReupload(true);
+    setVehOpen(true);
+  }
+
+  const vehReady = vehPlate.trim().length >= 3 && vehModel.trim().length >= 2 && vehNote.trim().length >= 5;
+
+  async function submitVehicleChange() {
+    if (!selected || !vehReady) return;
+    setBusy(true);
+    const { data, error: err } = await supabase.rpc('admin_change_driver_vehicle', {
+      p_driver: selected.id,
+      p_plate: vehPlate.trim(),
+      p_model: vehModel.trim(),
+      p_note: vehNote.trim(),
+      p_reupload: vehReupload,
+    });
+    setBusy(false);
+    const res = data as { success?: boolean; message?: string } | null;
+    if (err || !res?.success) {
+      alert(`Gagal: ${err?.message ?? res?.message ?? 'tidak diketahui'}`);
+      return;
+    }
+    setVehOpen(false);
     reloadAll();
   }
 
@@ -1151,6 +1193,23 @@ export default function DriversPage() {
                   )}
 
                   <div className="rounded-2xl border border-white bg-white shadow-sm p-4">
+                    <div className="text-sm font-semibold text-slate-900">Ganti kendaraan</div>
+                    <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      Untuk driver yang pindah ke kendaraan lain (plat dan model baru). Dokumen STNK dan foto kendaraan bisa diminta unggah ulang otomatis.
+                      Untuk ganti SIM, KTP, atau dokumen lain: buka tab Verifikasi, tekan Tolak pada dokumen itu, lalu driver mengunggah yang baru dan kamu Setujui.
+                    </p>
+                    <button
+                      disabled={busy || !!selected.is_engaged || phaseOf(selected) === 'banned'}
+                      onClick={openVehicleChange}
+                      className="mt-3 inline-flex items-center gap-1.5 px-5 py-2 rounded-full text-xs font-semibold bg-gradient-to-b from-[#4a98ad] to-[#2f7088] text-white shadow-md hover:opacity-90 disabled:opacity-50"
+                    >
+                      {selected.vehicle_type === 'car' ? <Car className="w-3.5 h-3.5" /> : <Bike className="w-3.5 h-3.5" />}
+                      Ganti kendaraan
+                    </button>
+                    {selected.is_engaged && <p className="text-[11px] text-amber-700 mt-2">Driver sedang narik, tunggu perjalanannya selesai.</p>}
+                  </div>
+
+                  <div className="rounded-2xl border border-white bg-white shadow-sm p-4">
                     <div className="text-sm font-semibold text-slate-900">Akses driver</div>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       Menonaktifkan driver membuatnya offline dan tidak bisa menerima order. Dokumen dan saldonya tetap tersimpan.
@@ -1489,6 +1548,72 @@ export default function DriversPage() {
           </aside>
         </div>
       )}
+      {selected && vehOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-950/50" onClick={() => !busy && setVehOpen(false)} />
+          <div className="relative w-full max-w-md rounded-3xl bg-white shadow-2xl p-6">
+            <h4 className="text-base font-bold text-slate-900">Ganti kendaraan {selected.full_name ?? 'driver ini'}</h4>
+            <p className="text-xs text-slate-500 mt-1">
+              Sekarang: {selected.vehicle_plate ?? '-'} - {selected.vehicle_model ?? '-'}. Driver otomatis offline setelah diganti dan perubahan tercatat di riwayat.
+            </p>
+            <label className="block mt-4 text-xs font-semibold text-slate-700">
+              Plat nomor baru
+              <input
+                value={vehPlate}
+                onChange={(e) => setVehPlate(e.target.value.toUpperCase())}
+                maxLength={14}
+                placeholder="Contoh: D 2345 BB"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[#2f7088]/20 focus:border-[#2f7088]"
+              />
+            </label>
+            <label className="block mt-3 text-xs font-semibold text-slate-700">
+              Model kendaraan baru
+              <input
+                value={vehModel}
+                onChange={(e) => setVehModel(e.target.value)}
+                maxLength={60}
+                placeholder="Contoh: Honda Beat 2022"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[#2f7088]/20 focus:border-[#2f7088]"
+              />
+            </label>
+            <label className="mt-3 flex items-start gap-2 text-xs text-slate-700 leading-relaxed">
+              <input type="checkbox" checked={vehReupload} onChange={(e) => setVehReupload(e.target.checked)} className="mt-0.5 w-4 h-4 accent-[#2f7088]" />
+              <span>
+                Minta driver unggah ulang <b>STNK</b> dan <b>Foto Kendaraan</b> (disarankan). Dokumen itu ditandai ditolak dan driver mendapat pemberitahuan.
+              </span>
+            </label>
+            <label className="block mt-3 text-xs font-semibold text-slate-700">
+              Catatan (wajib, minimal 5 huruf)
+              <textarea
+                value={vehNote}
+                onChange={(e) => setVehNote(e.target.value)}
+                maxLength={300}
+                rows={2}
+                placeholder="Contoh: driver ganti motor, diminta lewat WhatsApp"
+                className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-normal focus:outline-none focus:ring-2 focus:ring-[#2f7088]/20 focus:border-[#2f7088]"
+              />
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                disabled={busy}
+                onClick={() => setVehOpen(false)}
+                className="px-4 py-2 rounded-full border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Batal
+              </button>
+              <button
+                disabled={busy || !vehReady}
+                onClick={submitVehicleChange}
+                className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-gradient-to-b from-[#4a98ad] to-[#2f7088] text-white text-xs font-semibold shadow-md disabled:opacity-40"
+              >
+                {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Simpan perubahan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selected && deactOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-slate-950/50" onClick={() => !busy && setDeactOpen(false)} />
