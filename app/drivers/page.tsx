@@ -138,6 +138,12 @@ function histText(it: HistItem): { title: string; body: string; tone: 'red' | 'a
       body: `${sv(d.old_plate)} ${sv(d.old_model)} menjadi ${sv(d.new_plate)} ${sv(d.new_model)}. Catatan: ${sv(d.note)}`,
       tone: 'amber',
     };
+  if (a === 'driver_area_change')
+    return {
+      title: d.to === 'aktif' ? 'Wilayah dibuka untuk driver' : 'Driver dikembalikan ke antrean wilayah',
+      body: d.note ? `Catatan: ${sv(d.note)}` : '',
+      tone: d.to === 'aktif' ? 'green' : 'amber',
+    };
   if (a === 'driver_unban') return { title: 'Blokir permanen dibuka', body: `Alasan buka: ${sv(d.note)}`, tone: 'amber' };
   if (a === 'user_block') return { title: 'Akun diblokir', body: `Alasan: ${sv(d.reason)}`, tone: 'red' };
   if (a === 'user_unblock') return { title: 'Blokir akun dibuka', body: '', tone: 'green' };
@@ -310,6 +316,7 @@ export default function DriversPage() {
   const [deactReason, setDeactReason] = useState('');
   const [deactKind, setDeactKind] = useState<'temporary' | 'permanent'>('temporary');
   const [deactNote, setDeactNote] = useState('');
+  const [areaOnly, setAreaOnly] = useState(false);
   const [vehOpen, setVehOpen] = useState(false);
   const [vehPlate, setVehPlate] = useState('');
   const [vehModel, setVehModel] = useState('');
@@ -632,6 +639,27 @@ export default function DriversPage() {
     reloadAll();
   }
 
+  async function openAreaForDriver(driver: Driver) {
+    const note = window.prompt(
+      `Buka wilayah untuk ${driver.full_name ?? 'driver ini'}?\nSetelah ini driver bisa disetujui. Tulis catatan singkat (boleh dikosongkan), misalnya: wilayah Cileunyi sudah dibuka, driver sudah dikabari.`,
+      ''
+    );
+    if (note === null) return;
+    setBusy(true);
+    const { data, error: err } = await supabase.rpc('admin_set_driver_area', {
+      p_driver: driver.id,
+      p_status: 'aktif',
+      p_note: note.trim() || null,
+    });
+    setBusy(false);
+    const res = data as { success?: boolean; message?: string } | null;
+    if (err || !res?.success) {
+      alert(`Gagal: ${err?.message ?? res?.message ?? 'tidak diketahui'}`);
+      return;
+    }
+    reloadAll();
+  }
+
   function openVehicleChange() {
     if (!selected) return;
     setVehPlate(selected.vehicle_plate ?? '');
@@ -768,7 +796,9 @@ export default function DriversPage() {
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return drivers.filter((d) => {
-      if (statusFilter === 'rejected') {
+      if (areaOnly) {
+        if (d.area_status !== 'menunggu_wilayah') return false;
+      } else if (statusFilter === 'rejected') {
         if (phaseOf(d) !== 'rejected' && phaseOf(d) !== 'paused') return false;
       } else if (statusFilter !== 'all' && phaseOf(d) !== statusFilter) return false;
       if (typeFilter !== 'all' && d.vehicle_type !== typeFilter) return false;
@@ -779,7 +809,7 @@ export default function DriversPage() {
         (d.vehicle_plate ?? '').toLowerCase().replace(/\s/g, '').includes(q.replace(/\s/g, ''))
       );
     });
-  }, [drivers, statusFilter, typeFilter, query]);
+  }, [drivers, statusFilter, typeFilter, query, areaOnly]);
 
   const cards: { key: 'all' | Phase; label: string; value: number; tone: string }[] = [
     { key: 'pending', label: 'Menunggu verifikasi', value: counts.pending, tone: 'text-amber-600' },
@@ -827,7 +857,10 @@ export default function DriversPage() {
         {cards.map((c) => (
           <button
             key={c.key}
-            onClick={() => setStatusFilter(c.key)}
+            onClick={() => {
+              setAreaOnly(false);
+              setStatusFilter(c.key);
+            }}
             className={`text-left rounded-[22px] p-5 bg-gradient-to-br ${tint(c.tone)} transition shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)] ${
               statusFilter === c.key ? 'ring-2 ring-[#2f7088]' : 'hover:brightness-105'
             }`}
@@ -858,6 +891,15 @@ export default function DriversPage() {
             <option value="ride">Motor (Pim Ride)</option>
             <option value="car">Mobil (Pim Car)</option>
           </select>
+          <button
+            onClick={() => setAreaOnly((v) => !v)}
+            className={`inline-flex items-center justify-center gap-1.5 text-sm rounded-full border px-4 py-2 font-medium transition ${
+              areaOnly ? 'border-orange-300 bg-orange-50 text-orange-800' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            <MapPin className="w-3.5 h-3.5" />
+            Antrean wilayah ({drivers.filter((d) => d.area_status === 'menunggu_wilayah').length})
+          </button>
         </div>
 
         {loading ? (
@@ -1003,9 +1045,16 @@ export default function DriversPage() {
                       <div>
                         <div className="font-semibold">Lokasi saat daftar di luar wilayah layanan aktif</div>
                         <div className="mt-0.5">
-                          Wilayah terdeteksi: {selected.registration_area || 'tidak terdeteksi (izin lokasi ditolak/gagal)'}. Dokumen tetap bisa diperiksa dan
-                          disetujui seperti biasa &mdash; status ini hanya pengingat bahwa driver belum otomatis aktif sampai wilayahnya dibuka.
+                          Wilayah terdeteksi: {selected.registration_area || 'tidak terdeteksi (izin lokasi ditolak/gagal)'}. Dokumen tetap bisa diperiksa, tapi
+                          driver <b>belum bisa diaktifkan</b> sampai wilayahnya dibuka. Kabari driver secara manual, lalu tekan &quot;Buka wilayah&quot; setelah wilayahnya siap.
                         </div>
+                        <button
+                          disabled={busy}
+                          onClick={() => openAreaForDriver(selected)}
+                          className="mt-2 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-orange-600 hover:bg-orange-700 text-white text-xs font-semibold disabled:opacity-50"
+                        >
+                          <MapPin className="w-3.5 h-3.5" /> Buka wilayah
+                        </button>
                       </div>
                     </div>
                   ) : (
@@ -1247,7 +1296,8 @@ export default function DriversPage() {
                         <>
                           {statusOf(selected) !== 'approved' && (
                             <button
-                              disabled={busy}
+                              disabled={busy || selected.area_status === 'menunggu_wilayah'}
+                              title={selected.area_status === 'menunggu_wilayah' ? 'Buka wilayah driver dulu' : undefined}
                               onClick={() => setDriverStatus(selected, 'approved')}
                               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
                             >
@@ -1513,7 +1563,8 @@ export default function DriversPage() {
                   <>
                     {statusOf(selected) !== 'approved' && (
                       <button
-                        disabled={busy}
+                        disabled={busy || selected.area_status === 'menunggu_wilayah'}
+                        title={selected.area_status === 'menunggu_wilayah' ? 'Buka wilayah driver dulu' : undefined}
                         onClick={() => setDriverStatus(selected, 'approved')}
                         className="inline-flex items-center gap-1.5 px-5 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold disabled:opacity-50"
                       >
