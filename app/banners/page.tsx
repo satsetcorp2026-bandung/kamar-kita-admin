@@ -76,9 +76,9 @@ interface BannerForm {
 /* ------------------------------------------------------------------ */
 
 const BTN_PRIMARY =
-  'flex items-center justify-center gap-1.5 bg-gradient-to-br from-[#4a98ad] to-[#2f7088] text-white px-4 py-2 rounded-full text-xs font-bold shadow-[4px_6px_12px_rgba(36,76,96,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-full bg-gradient-to-b from-[#4a98ad] to-[#2f7088] text-white shadow-md hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed';
 const BTN_GHOST =
-  'flex items-center justify-center gap-1.5 px-3.5 py-2 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50';
+  'inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm rounded-full bg-white/80 shadow-[0_6px_16px_-8px_rgba(60,80,130,0.35)] hover:bg-white transition disabled:opacity-50';
 const ICON_BTN =
   'p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400';
 
@@ -176,21 +176,23 @@ function StatCard({
   hint?: string;
   tone: 'blue' | 'green' | 'rose' | 'slate';
 }) {
-  const tones: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-emerald-50 text-emerald-600',
-    rose: 'bg-rose-50 text-rose-600',
-    slate: 'bg-slate-100 text-slate-600',
+  const hero = tone === 'blue';
+  const bg: Record<string, string> = {
+    blue: 'from-[#4a98ad] to-[#2f7088]',
+    green: 'from-[#c6ebe1] to-[#98d4c9]',
+    rose: 'from-[#f7d9de] to-[#ebb0ba]',
+    violet: 'from-[#e8f0f7] to-[#cfdeea]',
+    slate: 'from-[#e8f0f7] to-[#cfdeea]',
   };
+  const color = hero ? 'text-white' : tone === 'green' ? 'text-emerald-900' : tone === 'rose' ? 'text-rose-900' : 'text-slate-800';
+  const sub = hero ? 'text-white/80' : 'text-slate-600';
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-start gap-3">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${tones[tone]}`}>
-        {icon}
-      </div>
+    <div className={`rounded-[22px] p-5 bg-gradient-to-br ${bg[tone]} shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)] flex items-start gap-3`}>
+      <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${hero ? 'bg-white/20 text-white' : 'bg-white/60 text-slate-700'}`}>{icon}</div>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{label}</div>
-        <div className="text-xl font-extrabold text-slate-800 leading-tight mt-0.5">{value}</div>
-        {hint && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{hint}</div>}
+        <p className={`text-[11px] font-semibold uppercase tracking-wide ${sub}`}>{label}</p>
+        <p className={`text-xl font-extrabold mt-0.5 leading-tight ${color}`}>{value}</p>
+        {hint && <p className={`text-xs mt-0.5 truncate ${sub}`}>{hint}</p>}
       </div>
     </div>
   );
@@ -267,7 +269,7 @@ function PhonePreview({ banners }: { banners: Banner[] }) {
               <div className="text-[9px] text-slate-400">Halo,</div>
               <div className="text-[11px] font-extrabold text-slate-800">Mau ke mana hari ini?</div>
             </div>
-            <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">P</div>
+            <div className="w-6 h-6 rounded-full bg-[#2f7088] text-white text-[10px] font-bold flex items-center justify-center">P</div>
           </div>
 
           {current ? (
@@ -299,7 +301,7 @@ function PhonePreview({ banners }: { banners: Banner[] }) {
                   key={b.id}
                   onClick={() => setIndex(i)}
                   aria-label={`Banner ${i + 1}`}
-                  className={`h-1.5 rounded-full transition-all ${i === safeIndex ? 'w-4 bg-blue-600' : 'w-1.5 bg-slate-300'}`}
+                  className={`h-1.5 rounded-full transition-all ${i === safeIndex ? 'w-4 bg-[#2f7088]' : 'w-1.5 bg-slate-300'}`}
                 />
               ))}
             </div>
@@ -644,7 +646,7 @@ export default function BannersPage() {
             <button
               onClick={() => setTab('banners')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                tab === 'banners' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+                tab === 'banners' ? 'bg-white text-[#2f7088] shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Layers className="w-3.5 h-3.5" />
@@ -653,7 +655,7 @@ export default function BannersPage() {
             <button
               onClick={() => setTab('history')}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-                tab === 'history' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+                tab === 'history' ? 'bg-white text-[#2f7088] shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <History className="w-3.5 h-3.5" />
@@ -686,7 +688,7 @@ export default function BannersPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
           <div className="lg:col-span-2 space-y-4">
             {/* Toolbar */}
-            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="bg-white/80 backdrop-blur border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)] p-3 flex flex-col sm:flex-row gap-2 sm:items-center">
               <div className="relative flex-1">
                 <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
@@ -694,13 +696,13 @@ export default function BannersPage() {
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Cari judul, keterangan, atau label..."
-                  className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-blue-500"
+                  className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-[#4a98ad]"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white focus:outline-blue-500"
+                className="px-3 py-2 border border-slate-200 rounded-full text-xs font-semibold text-slate-700 bg-white/80 focus:outline-[#4a98ad]"
               >
                 <option value="all">Semua status</option>
                 <option value="active">Tayang</option>
@@ -710,14 +712,14 @@ export default function BannersPage() {
                 <button
                   onClick={() => setView('grid')}
                   title="Tampilan kartu"
-                  className={`p-1.5 rounded-md ${view === 'grid' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                  className={`p-1.5 rounded-md ${view === 'grid' ? 'bg-white text-[#2f7088] shadow-sm' : 'text-slate-500'}`}
                 >
                   <LayoutGrid className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={() => setView('list')}
                   title="Tampilan daftar"
-                  className={`p-1.5 rounded-md ${view === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                  className={`p-1.5 rounded-md ${view === 'list' ? 'bg-white text-[#2f7088] shadow-sm' : 'text-slate-500'}`}
                 >
                   <List className="w-3.5 h-3.5" />
                 </button>
@@ -732,7 +734,7 @@ export default function BannersPage() {
                     setSearch('');
                     setStatusFilter('all');
                   }}
-                  className="text-blue-600 font-bold hover:underline"
+                  className="text-[#2f7088] font-bold hover:underline"
                 >
                   Hapus filter
                 </button>
@@ -742,7 +744,7 @@ export default function BannersPage() {
             {/* Daftar */}
             {loading ? (
               <div className="py-12 text-center text-slate-500 flex items-center justify-center gap-2 text-xs">
-                <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> Memuat banner promo...
+                <Loader2 className="w-4 h-4 animate-spin text-[#4a98ad]" /> Memuat banner promo...
               </div>
             ) : loadError ? (
               <div className="py-10 text-center bg-white rounded-xl border border-rose-200 text-xs text-rose-600 space-y-3">
@@ -838,7 +840,7 @@ export default function BannersPage() {
                 })}
               </div>
             ) : (
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="bg-white/80 backdrop-blur border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)] overflow-hidden">
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wide">
                     <tr>
@@ -913,11 +915,11 @@ export default function BannersPage() {
 
       {/* ============ TAB RIWAYAT ============ */}
       {tab === 'history' && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-white/80 backdrop-blur border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]">
           <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <History className="w-4 h-4 text-blue-600" /> Riwayat Perubahan Banner
+                <History className="w-4 h-4 text-[#2f7088]" /> Riwayat Perubahan Banner
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Dicatat otomatis oleh sistem setiap banner dibuat, diubah, atau dihapus. Tidak bisa diedit dari sini.
@@ -931,13 +933,13 @@ export default function BannersPage() {
                   value={auditSearch}
                   onChange={(e) => setAuditSearch(e.target.value)}
                   placeholder="Cari judul atau pengubah..."
-                  className="pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs w-52 focus:outline-blue-500"
+                  className="pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs w-52 focus:outline-[#4a98ad]"
                 />
               </div>
               <select
                 value={auditFilter}
                 onChange={(e) => setAuditFilter(e.target.value as AuditFilter)}
-                className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white"
+                className="px-3 py-2 border border-slate-200 rounded-full text-xs font-semibold text-slate-700 bg-white/80"
               >
                 <option value="all">Semua aksi</option>
                 <option value="INSERT">Dibuat</option>
@@ -960,7 +962,7 @@ export default function BannersPage() {
                   a.action === 'INSERT'
                     ? { text: 'Dibuat', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
                     : a.action === 'UPDATE'
-                    ? { text: 'Diubah', cls: 'bg-blue-50 text-blue-700 border-blue-200' }
+                    ? { text: 'Diubah', cls: 'bg-[#e8f0f7] text-[#245a70] border-[#b5d3df]' }
                     : { text: 'Dihapus', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
                 return (
                   <li key={a.id} className="p-4 flex gap-3">
@@ -1009,7 +1011,7 @@ export default function BannersPage() {
       {/* ============ MODAL TAMBAH / UBAH ============ */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-100">
+          <div className="bg-white rounded-3xl max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-100">
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <h3 className="font-bold text-slate-900 text-sm">{editingId ? 'Ubah Banner Promo' : 'Tambah Banner Promo Baru'}</h3>
               <button onClick={() => setModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
@@ -1032,7 +1034,7 @@ export default function BannersPage() {
                       placeholder="Contoh: Diskon Sewa Awal Semester"
                       value={form.title}
                       onChange={(e) => setField('title', e.target.value)}
-                      className="w-full p-2 border border-slate-200 rounded-lg focus:outline-blue-500"
+                      className="w-full p-2 border border-slate-200 rounded-xl focus:outline-[#4a98ad]"
                     />
                   </div>
 
@@ -1047,7 +1049,7 @@ export default function BannersPage() {
                       placeholder="Contoh: Khusus kost putri area Caringin & Sayang"
                       value={form.description}
                       onChange={(e) => setField('description', e.target.value)}
-                      className="w-full p-2 border border-slate-200 rounded-lg focus:outline-blue-500"
+                      className="w-full p-2 border border-slate-200 rounded-xl focus:outline-[#4a98ad]"
                     />
                   </div>
 
@@ -1060,12 +1062,12 @@ export default function BannersPage() {
                         placeholder="PROMO"
                         value={form.tag}
                         onChange={(e) => setField('tag', e.target.value)}
-                        className="w-full p-2 border border-slate-200 rounded-lg focus:outline-blue-500 font-bold uppercase"
+                        className="w-full p-2 border border-slate-200 rounded-xl focus:outline-[#4a98ad] font-bold uppercase"
                       />
                     </div>
                     <div>
                       <label className="font-semibold text-slate-700 block mb-1">Warna Badge</label>
-                      <div className="flex items-center gap-2 border border-slate-200 rounded-lg p-1.5">
+                      <div className="flex items-center gap-2 border border-slate-200 rounded-xl p-1.5">
                         <input
                           type="color"
                           value={form.tagBg}
@@ -1082,7 +1084,7 @@ export default function BannersPage() {
                         min="1"
                         value={form.order}
                         onChange={(e) => setField('order', e.target.value)}
-                        className="w-full p-2 border border-slate-200 rounded-lg focus:outline-blue-500"
+                        className="w-full p-2 border border-slate-200 rounded-xl focus:outline-[#4a98ad]"
                       />
                     </div>
                   </div>
@@ -1090,12 +1092,12 @@ export default function BannersPage() {
                   <div>
                     <label className="font-semibold text-slate-700 block mb-1">Gambar Banner (16:9 / 2:1) *</label>
                     <label
-                      className={`w-full border-2 border-dashed border-blue-300 rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-blue-50/40 hover:bg-blue-50 transition-all ${
+                      className={`w-full border-2 border-dashed border-[#8dbccd] rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-[#e8f0f7]/40 hover:bg-[#e8f0f7] transition-all ${
                         uploadingImage ? 'opacity-50 pointer-events-none' : ''
                       }`}
                     >
-                      {uploadingImage ? <Loader2 className="w-5 h-5 text-blue-600 animate-spin" /> : <Upload className="w-5 h-5 text-blue-600" />}
-                      <span className="text-xs font-bold text-blue-600">
+                      {uploadingImage ? <Loader2 className="w-5 h-5 text-[#2f7088] animate-spin" /> : <Upload className="w-5 h-5 text-[#2f7088]" />}
+                      <span className="text-xs font-bold text-[#2f7088]">
                         {uploadingImage ? 'Mengunggah gambar...' : form.imageUrl ? 'Ganti gambar' : '+ Pilih gambar dari laptop (maks. 2 MB)'}
                       </span>
                       <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
@@ -1166,7 +1168,7 @@ export default function BannersPage() {
       {/* ============ KONFIRMASI HAPUS ============ */}
       {deleteTarget && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 p-5 text-center">
+          <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl border border-slate-100 p-5 text-center">
             <div className="w-11 h-11 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
               <Trash2 className="w-5 h-5" />
             </div>

@@ -93,9 +93,9 @@ const TEMPLATES: { name: string; title: string; body: string }[] = [
 ];
 
 const BTN_PRIMARY =
-  'flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-br from-[#4a98ad] to-[#2f7088] text-white rounded-full text-xs font-bold shadow-[4px_6px_12px_rgba(36,76,96,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center gap-1.5 px-5 py-2 text-sm font-semibold rounded-full bg-gradient-to-b from-[#4a98ad] to-[#2f7088] text-white shadow-md hover:opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed';
 const BTN_GHOST =
-  'flex items-center justify-center gap-1.5 px-3.5 py-2 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50';
+  'inline-flex items-center justify-center gap-1.5 px-4 py-2 text-sm rounded-full bg-white/80 shadow-[0_6px_16px_-8px_rgba(60,80,130,0.35)] hover:bg-white transition disabled:opacity-50';
 
 /* ------------------------------------------------------------------ */
 /* Pembantu                                                             */
@@ -152,19 +152,23 @@ function StatCard({
   hint?: string;
   tone: 'blue' | 'green' | 'violet' | 'slate';
 }) {
-  const tones: Record<string, string> = {
-    blue: 'bg-blue-50 text-blue-600',
-    green: 'bg-emerald-50 text-emerald-600',
-    violet: 'bg-violet-50 text-violet-600',
-    slate: 'bg-slate-100 text-slate-600',
+  const hero = tone === 'blue';
+  const bg: Record<string, string> = {
+    blue: 'from-[#4a98ad] to-[#2f7088]',
+    green: 'from-[#c6ebe1] to-[#98d4c9]',
+    rose: 'from-[#f7d9de] to-[#ebb0ba]',
+    violet: 'from-[#e8f0f7] to-[#cfdeea]',
+    slate: 'from-[#e8f0f7] to-[#cfdeea]',
   };
+  const color = hero ? 'text-white' : tone === 'green' ? 'text-emerald-900' : tone === 'rose' ? 'text-rose-900' : 'text-slate-800';
+  const sub = hero ? 'text-white/80' : 'text-slate-600';
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-start gap-3">
-      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${tones[tone]}`}>{icon}</div>
+    <div className={`rounded-[22px] p-5 bg-gradient-to-br ${bg[tone]} shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)] flex items-start gap-3`}>
+      <div className={`w-9 h-9 rounded-2xl flex items-center justify-center shrink-0 ${hero ? 'bg-white/20 text-white' : 'bg-white/60 text-slate-700'}`}>{icon}</div>
       <div className="min-w-0">
-        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{label}</div>
-        <div className="text-xl font-extrabold text-slate-800 leading-tight mt-0.5">{value}</div>
-        {hint && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{hint}</div>}
+        <p className={`text-[11px] font-semibold uppercase tracking-wide ${sub}`}>{label}</p>
+        <p className={`text-xl font-extrabold mt-0.5 leading-tight ${color}`}>{value}</p>
+        {hint && <p className={`text-xs mt-0.5 truncate ${sub}`}>{hint}</p>}
       </div>
     </div>
   );
@@ -232,7 +236,7 @@ function PhonePreview({ title, body }: { title: string; body: string }) {
 
           <div className="bg-white/95 rounded-2xl p-3 shadow-lg">
             <div className="flex items-center gap-1.5 mb-1.5">
-              <div className="w-4 h-4 rounded-full bg-blue-600 text-white text-[8px] font-extrabold flex items-center justify-center">P</div>
+              <div className="w-4 h-4 rounded-full bg-[#2f7088] text-white text-[8px] font-extrabold flex items-center justify-center">P</div>
               <span className="text-[9px] font-semibold text-slate-500">Pimpim · sekarang</span>
             </div>
             <div className="text-[12px] font-bold text-slate-900 leading-snug break-words">{title.trim() || 'Judul notifikasi'}</div>
@@ -515,10 +519,10 @@ export default function NotifikasiPage() {
 
       {/* Buat siaran */}
       <div ref={composeRef} className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start scroll-mt-4">
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
+        <div className="lg:col-span-2 bg-white/80 backdrop-blur border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)] p-5 space-y-4">
           <div>
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <Bell className="w-4 h-4 text-blue-600" />
+              <Bell className="w-4 h-4 text-[#2f7088]" />
               Buat Siaran Baru
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -543,7 +547,7 @@ export default function NotifikasiPage() {
                     onClick={() => setTarget(t.key)}
                     className={`text-left py-2.5 px-3 rounded-lg border transition-all ${
                       target === t.key
-                        ? 'bg-blue-50 border-blue-500 text-blue-700'
+                        ? 'bg-[#e8f0f7] border-[#4a98ad] text-[#245a70]'
                         : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
                     }`}
                   >
@@ -551,7 +555,7 @@ export default function NotifikasiPage() {
                       {t.label}
                       {t.key === 'all' && deviceCount !== null ? ` (${deviceCount})` : ''}
                     </div>
-                    <div className={`text-[10px] mt-0.5 ${target === t.key ? 'text-blue-500' : 'text-slate-400'}`}>{t.hint}</div>
+                    <div className={`text-[10px] mt-0.5 ${target === t.key ? 'text-[#4a98ad]' : 'text-slate-400'}`}>{t.hint}</div>
                   </button>
                 ))}
               </div>
@@ -568,7 +572,7 @@ export default function NotifikasiPage() {
                       setTitle(t.title);
                       setBody(t.body);
                     }}
-                    className="px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors"
+                    className="px-2.5 py-1 rounded-full border border-slate-200 bg-slate-50 text-[11px] font-semibold text-slate-600 hover:bg-[#e8f0f7] hover:border-[#8dbccd] hover:text-[#245a70] transition-colors"
                   >
                     {t.name}
                   </button>
@@ -589,7 +593,7 @@ export default function NotifikasiPage() {
                 placeholder="Contoh: Promo Spesial Kost Dekat Unpad"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-blue-500 font-medium"
+                className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-[#4a98ad] font-medium"
               />
             </div>
 
@@ -606,7 +610,7 @@ export default function NotifikasiPage() {
                 placeholder="Contoh: Dapatkan diskon sewa bulan pertama untuk 5 kosan pilihan di Jatinangor hari ini..."
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
-                className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-blue-500 leading-relaxed"
+                className="w-full p-2.5 border border-slate-200 rounded-lg focus:outline-[#4a98ad] leading-relaxed"
               />
               <p className="text-[11px] text-slate-400 mt-1">Tulis pendek dan jelas. Di layar kunci, pesan panjang akan terpotong.</p>
             </div>
@@ -627,12 +631,12 @@ export default function NotifikasiPage() {
       </div>
 
       {/* Riwayat */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-white/80 backdrop-blur border border-white rounded-3xl shadow-[0_10px_28px_-14px_rgba(60,80,130,0.35)]">
         <div className="p-4 border-b border-slate-100 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <History className="w-4 h-4 text-blue-600" /> Riwayat Siaran
+                <History className="w-4 h-4 text-[#2f7088]" /> Riwayat Siaran
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 {total.toLocaleString('id-ID')} siaran sesuai filter. Dicatat otomatis oleh sistem dan tidak bisa diubah dari sini.
@@ -656,13 +660,13 @@ export default function NotifikasiPage() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Cari judul atau isi..."
-                className="pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs w-56 focus:outline-blue-500"
+                className="pl-8 pr-3 py-2 border border-slate-200 rounded-xl text-xs w-56 focus:outline-[#4a98ad]"
               />
             </div>
             <select
               value={fTarget}
               onChange={(e) => setFTarget(e.target.value as 'all' | Target)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white"
+              className="px-3 py-2 border border-slate-200 rounded-full text-xs font-semibold text-slate-700 bg-white/80"
             >
               <option value="all">Semua target</option>
               {TARGETS.map((t) => (
@@ -674,7 +678,7 @@ export default function NotifikasiPage() {
             <select
               value={fStatus}
               onChange={(e) => setFStatus(e.target.value as 'all' | BroadcastStatus)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white"
+              className="px-3 py-2 border border-slate-200 rounded-full text-xs font-semibold text-slate-700 bg-white/80"
             >
               <option value="all">Semua status</option>
               <option value="sent">Terkirim</option>
@@ -683,7 +687,7 @@ export default function NotifikasiPage() {
             <select
               value={fRange}
               onChange={(e) => setFRange(e.target.value as '7' | '30' | '90' | 'all')}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white"
+              className="px-3 py-2 border border-slate-200 rounded-full text-xs font-semibold text-slate-700 bg-white/80"
             >
               <option value="7">7 hari terakhir</option>
               <option value="30">30 hari terakhir</option>
@@ -697,7 +701,7 @@ export default function NotifikasiPage() {
           <div className="p-10 text-center text-xs text-rose-600">{histError}</div>
         ) : histLoading && rows.length === 0 ? (
           <div className="py-12 text-center text-slate-500 flex items-center justify-center gap-2 text-xs">
-            <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> Memuat riwayat...
+            <Loader2 className="w-4 h-4 animate-spin text-[#4a98ad]" /> Memuat riwayat...
           </div>
         ) : rows.length === 0 ? (
           <div className="py-12 text-center text-slate-400 text-xs">Belum ada siaran yang cocok dengan filter ini.</div>
@@ -716,7 +720,7 @@ export default function NotifikasiPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {rows.map((r) => (
-                  <tr key={r.id} onClick={() => setDetail(r)} className="hover:bg-blue-50/40 cursor-pointer">
+                  <tr key={r.id} onClick={() => setDetail(r)} className="hover:bg-[#e8f0f7]/40 cursor-pointer">
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
                       {fmtDateTime(r.created_at)}
                       <div className="text-[10px] text-slate-400">{timeAgo(r.created_at)}</div>
@@ -764,7 +768,7 @@ export default function NotifikasiPage() {
       {/* Konfirmasi kirim */}
       {confirmOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden">
             <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
               <h3 className="font-bold text-slate-900 text-sm">Tinjau sebelum menyiarkan</h3>
               <button onClick={() => !sending && setConfirmOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
@@ -808,7 +812,7 @@ export default function NotifikasiPage() {
       {/* Detail riwayat */}
       {detail && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setDetail(null)}>
-          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
               <h3 className="font-bold text-slate-900 text-sm">Detail siaran</h3>
               <button onClick={() => setDetail(null)} className="p-1 text-slate-400 hover:text-slate-600">
