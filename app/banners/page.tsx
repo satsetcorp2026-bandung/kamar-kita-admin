@@ -1,20 +1,33 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { 
-  Plus, 
-  Trash2, 
-  CheckCircle2, 
-  XCircle, 
-  Loader2, 
-  Upload, 
-  X, 
-  Bell, 
-  Send, 
-  Eye, 
-  Layers
+import {
+  Plus,
+  Trash2,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Upload,
+  X,
+  Eye,
+  Layers,
+  Search,
+  LayoutGrid,
+  List,
+  ArrowUp,
+  ArrowDown,
+  Pencil,
+  Copy,
+  History,
+  Smartphone,
+  AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
+
+/* ------------------------------------------------------------------ */
+/* Tipe data                                                           */
+/* ------------------------------------------------------------------ */
 
 interface Banner {
   id: string;
@@ -28,588 +41,1158 @@ interface Banner {
   created_at: string;
 }
 
+interface BannerAudit {
+  id: number;
+  created_at: string;
+  banner_id: string | null;
+  action: 'INSERT' | 'UPDATE' | 'DELETE';
+  old_row: Partial<Banner> | null;
+  new_row: Partial<Banner> | null;
+  actor_email: string | null;
+}
+
+type StatusFilter = 'all' | 'active' | 'inactive';
+type ViewMode = 'grid' | 'list';
+type PageTab = 'banners' | 'history';
+type AuditFilter = 'all' | 'INSERT' | 'UPDATE' | 'DELETE';
+
+interface ToastState {
+  type: 'success' | 'error';
+  message: string;
+}
+
+interface BannerForm {
+  title: string;
+  description: string;
+  tag: string;
+  tagBg: string;
+  order: string;
+  imageUrl: string;
+  isActive: boolean;
+}
+
+/* ------------------------------------------------------------------ */
+/* Gaya & pembantu                                                     */
+/* ------------------------------------------------------------------ */
+
+const BTN_PRIMARY =
+  'flex items-center justify-center gap-1.5 bg-gradient-to-br from-[#4a98ad] to-[#2f7088] text-white px-4 py-2 rounded-full text-xs font-bold shadow-[4px_6px_12px_rgba(36,76,96,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed';
+const BTN_GHOST =
+  'flex items-center justify-center gap-1.5 px-3.5 py-2 border border-slate-200 bg-white rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50';
+const ICON_BTN =
+  'p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-slate-400';
+
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const AUDIT_PAGE_SIZE = 15;
+
+const FIELD_LABELS: Record<string, string> = {
+  title: 'Judul',
+  description: 'Keterangan',
+  tag: 'Label',
+  tag_bg: 'Warna badge',
+  order_index: 'Urutan',
+  is_active: 'Status',
+  image_url: 'Gambar',
+};
+
+const EMPTY_FORM: BannerForm = {
+  title: '',
+  description: '',
+  tag: 'PROMO',
+  tagBg: '#0284C7',
+  order: '1',
+  imageUrl: '',
+  isActive: true,
+};
+
+function errMsg(err: unknown, fallback: string): string {
+  return (err as { message?: string } | null)?.message || fallback;
+}
+
+function fmtDateTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '-';
+  return d.toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function timeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  if (Number.isNaN(diff)) return '-';
+  const min = Math.floor(diff / 60000);
+  if (min < 1) return 'baru saja';
+  if (min < 60) return `${min} menit lalu`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} jam lalu`;
+  const day = Math.floor(hr / 24);
+  if (day < 30) return `${day} hari lalu`;
+  return fmtDateTime(iso);
+}
+
+function fieldValue(key: string, v: unknown): string {
+  if (key === 'is_active') return v ? 'Tayang' : 'Nonaktif';
+  if (key === 'image_url') return 'gambar';
+  if (v === null || v === undefined || v === '') return '(kosong)';
+  return String(v);
+}
+
+function diffRows(
+  oldRow: Partial<Banner> | null,
+  newRow: Partial<Banner> | null
+): { label: string; from: string; to: string }[] {
+  if (!oldRow || !newRow) return [];
+  const out: { label: string; from: string; to: string }[] = [];
+  (Object.keys(FIELD_LABELS) as (keyof Banner)[]).forEach((k) => {
+    if (oldRow[k] !== newRow[k]) {
+      out.push({
+        label: FIELD_LABELS[k],
+        from: fieldValue(k, oldRow[k]),
+        to: k === 'image_url' ? 'diganti' : fieldValue(k, newRow[k]),
+      });
+    }
+  });
+  return out;
+}
+
+/* ------------------------------------------------------------------ */
+/* Komponen kecil                                                      */
+/* ------------------------------------------------------------------ */
+
+function StatCard({
+  icon,
+  label,
+  value,
+  hint,
+  tone,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string | number;
+  hint?: string;
+  tone: 'blue' | 'green' | 'rose' | 'slate';
+}) {
+  const tones: Record<string, string> = {
+    blue: 'bg-blue-50 text-blue-600',
+    green: 'bg-emerald-50 text-emerald-600',
+    rose: 'bg-rose-50 text-rose-600',
+    slate: 'bg-slate-100 text-slate-600',
+  };
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-start gap-3">
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${tones[tone]}`}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">{label}</div>
+        <div className="text-xl font-extrabold text-slate-800 leading-tight mt-0.5">{value}</div>
+        {hint && <div className="text-[11px] text-slate-400 mt-0.5 truncate">{hint}</div>}
+      </div>
+    </div>
+  );
+}
+
+function StatusPill({ active, onClick, disabled }: { active: boolean; onClick?: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={active ? 'Klik untuk menonaktifkan' : 'Klik untuk menayangkan'}
+      className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-bold uppercase transition-colors disabled:opacity-50 ${
+        active
+          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+          : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+      }`}
+    >
+      {active ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
+      {active ? 'Tayang' : 'Nonaktif'}
+    </button>
+  );
+}
+
+function Toast({ toast, onClose }: { toast: ToastState | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(onClose, 4000);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+  if (!toast) return null;
+  return (
+    <div className="fixed bottom-5 right-5 z-[60]">
+      <div
+        className={`flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-xs font-semibold text-white ${
+          toast.type === 'success' ? 'bg-emerald-600' : 'bg-rose-600'
+        }`}
+      >
+        {toast.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+        {toast.message}
+        <button onClick={onClose} className="ml-2 opacity-80 hover:opacity-100">
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Pratinjau slider banner seperti tampil di beranda aplikasi */
+function PhonePreview({ banners }: { banners: Banner[] }) {
+  const [index, setIndex] = useState(0);
+  const safeIndex = banners.length === 0 ? 0 : Math.min(index, banners.length - 1);
+  const current = banners[safeIndex];
+
+  useEffect(() => {
+    if (banners.length < 2) return;
+    const t = setInterval(() => setIndex((i) => (i + 1) % banners.length), 3500);
+    return () => clearInterval(t);
+  }, [banners.length]);
+
+  return (
+    <div className="bg-slate-50 rounded-xl border border-slate-200 p-5 flex flex-col items-center">
+      <span className="flex items-center gap-1.5 text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4">
+        <Smartphone className="w-3.5 h-3.5" /> Pratinjau di Aplikasi
+      </span>
+
+      <div className="w-[230px] rounded-[28px] border-[6px] border-slate-800 bg-white shadow-xl overflow-hidden">
+        <div className="h-5 bg-slate-800 flex justify-center">
+          <div className="w-14 h-3 bg-slate-950 rounded-b-xl" />
+        </div>
+        <div className="px-3 pt-3 pb-4 bg-slate-50 min-h-[300px]">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="text-[9px] text-slate-400">Halo,</div>
+              <div className="text-[11px] font-extrabold text-slate-800">Mau ke mana hari ini?</div>
+            </div>
+            <div className="w-6 h-6 rounded-full bg-blue-600 text-white text-[10px] font-bold flex items-center justify-center">P</div>
+          </div>
+
+          {current ? (
+            <div className="relative aspect-[16/8] rounded-xl overflow-hidden bg-slate-200 shadow">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={current.image_url} alt={current.title} className="w-full h-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+              <span
+                className="absolute top-1.5 left-1.5 text-white text-[8px] font-bold px-1.5 py-0.5 rounded"
+                style={{ backgroundColor: current.tag_bg || '#0284C7' }}
+              >
+                {current.tag}
+              </span>
+              <div className="absolute bottom-1.5 left-2 right-2">
+                <div className="text-white text-[10px] font-extrabold leading-tight line-clamp-1">{current.title}</div>
+                <div className="text-white/80 text-[8px] leading-tight line-clamp-1">{current.description}</div>
+              </div>
+            </div>
+          ) : (
+            <div className="aspect-[16/8] rounded-xl border border-dashed border-slate-300 flex items-center justify-center text-[10px] text-slate-400 text-center px-4">
+              Belum ada banner tayang
+            </div>
+          )}
+
+          {banners.length > 1 && (
+            <div className="flex justify-center gap-1 mt-2">
+              {banners.map((b, i) => (
+                <button
+                  key={b.id}
+                  onClick={() => setIndex(i)}
+                  aria-label={`Banner ${i + 1}`}
+                  className={`h-1.5 rounded-full transition-all ${i === safeIndex ? 'w-4 bg-blue-600' : 'w-1.5 bg-slate-300'}`}
+                />
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-4 gap-1.5 mt-3">
+            {['Ride', 'Hunian', 'Tolongin', 'Laundry'].map((m) => (
+              <div key={m} className="flex flex-col items-center gap-1">
+                <div className="w-8 h-8 rounded-xl bg-white border border-slate-200 shadow-sm" />
+                <span className="text-[8px] text-slate-500">{m}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-[10px] text-slate-400 text-center mt-4 leading-relaxed">
+        Hanya banner berstatus <b>Tayang</b>, berurutan sesuai Nomor Urut.
+        <br />
+        Pratinjau perkiraan — tampilan asli mengikuti aplikasi.
+      </p>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Halaman                                                              */
+/* ------------------------------------------------------------------ */
+
 export default function BannersPage() {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'banners' | 'broadcast'>('banners');
+  const [loadError, setLoadError] = useState('');
+  const [tab, setTab] = useState<PageTab>('banners');
+  const [toast, setToast] = useState<ToastState | null>(null);
 
-  // Modal Tambah Banner
-  const [isBannerModalOpen, setIsBannerModalOpen] = useState(false);
-  const [bannerTitle, setBannerTitle] = useState('');
-  const [bannerDesc, setBannerDesc] = useState('');
-  const [bannerTag, setBannerTag] = useState('PROMO');
-  const [bannerTagBg, setBannerTagBg] = useState('#0284C7');
-  const [bannerOrder, setBannerOrder] = useState('1');
-  const [bannerImageUrl, setBannerImageUrl] = useState('');
+  // Cari & saring
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [view, setView] = useState<ViewMode>('grid');
+
+  // Aksi per baris
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Banner | null>(null);
+
+  // Modal tambah / ubah
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [form, setForm] = useState<BannerForm>(EMPTY_FORM);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [savingBanner, setSavingBanner] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  // Broadcast Notifikasi (Expo Push Tokens)
-  const [notifTitle, setNotifTitle] = useState('');
-  const [notifBody, setNotifBody] = useState('');
-  const [notifTarget, setNotifTarget] = useState<'all' | 'users' | 'partners'>('all');
-  const [sendingNotif, setSendingNotif] = useState(false);
-  const [targetTokenCount, setTargetTokenCount] = useState(0);
+  // Riwayat perubahan
+  const [audit, setAudit] = useState<BannerAudit[]>([]);
+  const [auditTotal, setAuditTotal] = useState(0);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [auditError, setAuditError] = useState('');
+  const [auditFilter, setAuditFilter] = useState<AuditFilter>('all');
+  const [auditSearch, setAuditSearch] = useState('');
 
-  useEffect(() => {
-    let isMounted = true;
+  const notify = useCallback((type: ToastState['type'], message: string) => setToast({ type, message }), []);
+  const closeToast = useCallback(() => setToast(null), []);
 
-    async function loadData() {
-      // 1. Ambil data banner
-      const { data: bannerData, error } = await supabase
-        .from('banners')
-        .select('*')
-        .order('order_index', { ascending: true });
+  /* ----- muat data ----- */
 
-      if (isMounted) {
-        if (!error && bannerData) {
-          setBanners(bannerData as Banner[]);
-        }
-        setLoading(false);
-      }
-
-      // 2. Hitung jumlah token penerima notifikasi
-      const { count } = await supabase
-        .from('user_push_tokens')
-        .select('*', { count: 'exact', head: true });
-
-      if (isMounted && count !== null) {
-        setTargetTokenCount(count);
-      }
+  const loadBanners = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('banners')
+      .select('*')
+      .order('order_index', { ascending: true });
+    if (error) {
+      setLoadError(error.message || 'Gagal memuat banner.');
+    } else {
+      setLoadError('');
+      setBanners((data || []) as Banner[]);
     }
-
-    loadData();
-
-    return () => {
-      isMounted = false;
-    };
+    setLoading(false);
   }, []);
 
-  // Upload Foto Banner ke Supabase Storage (kamar-kita/banners/)
+  const loadAudit = useCallback(async (offset: number) => {
+    setAuditLoading(true);
+    const { data, error, count } = await supabase
+      .from('banner_audit')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + AUDIT_PAGE_SIZE - 1);
+    if (error) {
+      setAuditError(
+        error.message?.includes('banner_audit')
+          ? 'Tabel riwayat belum ada. Jalankan SQL Part CI di Supabase terlebih dahulu.'
+          : error.message || 'Gagal memuat riwayat.'
+      );
+    } else {
+      setAuditError('');
+      setAudit((prev) => (offset === 0 ? ((data || []) as BannerAudit[]) : [...prev, ...((data || []) as BannerAudit[])]));
+      setAuditTotal(count ?? 0);
+    }
+    setAuditLoading(false);
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadBanners();
+    loadAudit(0);
+  }, [loadBanners, loadAudit]);
+
+  /* ----- turunan ----- */
+
+  const sorted = useMemo(
+    () => [...banners].sort((a, b) => a.order_index - b.order_index || a.created_at.localeCompare(b.created_at)),
+    [banners]
+  );
+  const activeCount = banners.filter((b) => b.is_active).length;
+  const inactiveCount = banners.length - activeCount;
+  const filtersActive = search.trim() !== '' || statusFilter !== 'all';
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return sorted.filter((b) => {
+      if (statusFilter === 'active' && !b.is_active) return false;
+      if (statusFilter === 'inactive' && b.is_active) return false;
+      if (!q) return true;
+      return (
+        b.title.toLowerCase().includes(q) ||
+        (b.description || '').toLowerCase().includes(q) ||
+        (b.tag || '').toLowerCase().includes(q)
+      );
+    });
+  }, [sorted, search, statusFilter]);
+
+  const previewBanners = useMemo(() => sorted.filter((b) => b.is_active), [sorted]);
+
+  const filteredAudit = useMemo(() => {
+    const q = auditSearch.trim().toLowerCase();
+    return audit.filter((a) => {
+      if (auditFilter !== 'all' && a.action !== auditFilter) return false;
+      if (!q) return true;
+      const title = (a.new_row?.title || a.old_row?.title || '').toLowerCase();
+      return title.includes(q) || (a.actor_email || '').toLowerCase().includes(q);
+    });
+  }, [audit, auditFilter, auditSearch]);
+
+  const lastChange = audit[0];
+
+  /* ----- form tambah / ubah ----- */
+
+  const openNew = () => {
+    const nextOrder = banners.length ? Math.max(...banners.map((b) => b.order_index)) + 1 : 1;
+    setEditingId(null);
+    setForm({ ...EMPTY_FORM, order: String(nextOrder) });
+    setModalOpen(true);
+  };
+
+  const openEdit = (b: Banner) => {
+    setEditingId(b.id);
+    setForm({
+      title: b.title,
+      description: b.description || '',
+      tag: b.tag || 'PROMO',
+      tagBg: b.tag_bg || '#0284C7',
+      order: String(b.order_index),
+      imageUrl: b.image_url,
+      isActive: b.is_active,
+    });
+    setModalOpen(true);
+  };
+
+  const setField = <K extends keyof BannerForm>(key: K, value: BannerForm[K]) =>
+    setForm((f) => ({ ...f, [key]: value }));
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
 
-    if (file.size > 2 * 1024 * 1024) {
-      alert('Ukuran banner maksimal 2 MB.');
+    if (!file.type.startsWith('image/')) {
+      notify('error', 'File harus berupa gambar (JPG, PNG, atau WebP).');
+      return;
+    }
+    if (file.size > MAX_IMAGE_BYTES) {
+      notify('error', `Ukuran banner maksimal 2 MB (file ini ${(file.size / 1024 / 1024).toFixed(1)} MB).`);
       return;
     }
 
     setUploadingImage(true);
     try {
       const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-      const fileName = `banner_${Date.now()}.${ext}`;
-      const filePath = `banners/${fileName}`;
-
+      const filePath = `banners/banner_${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from('kamar-kita')
         .upload(filePath, file, { contentType: file.type, upsert: true });
-
       if (uploadError) throw uploadError;
 
-      const { data: publicUrlData } = supabase.storage
-        .from('kamar-kita')
-        .getPublicUrl(filePath);
-
-      if (publicUrlData?.publicUrl) {
-        setBannerImageUrl(publicUrlData.publicUrl);
-      }
+      const { data: urlData } = supabase.storage.from('kamar-kita').getPublicUrl(filePath);
+      if (urlData?.publicUrl) setField('imageUrl', urlData.publicUrl);
     } catch (err: unknown) {
-      const msg = (err as { message?: string } | null)?.message || 'Gagal mengunggah foto.';
-      alert(msg);
+      notify('error', errMsg(err, 'Gagal mengunggah foto.'));
     } finally {
       setUploadingImage(false);
-      e.target.value = '';
     }
   };
 
-  // Simpan Banner Baru
-  const handleSaveBanner = async (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!bannerTitle.trim() || !bannerImageUrl.trim()) {
-      alert('Judul dan Gambar Banner wajib diisi!');
+    if (form.title.trim().length < 3) {
+      notify('error', 'Judul banner minimal 3 huruf.');
+      return;
+    }
+    if (!form.imageUrl.trim()) {
+      notify('error', 'Gambar banner wajib diunggah.');
       return;
     }
 
-    setSavingBanner(true);
+    setSaving(true);
     try {
-      const newBanner = {
-        title: bannerTitle.trim(),
-        description: bannerDesc.trim(),
-        tag: bannerTag.trim().toUpperCase(),
-        tag_bg: bannerTagBg,
-        order_index: parseInt(bannerOrder, 10) || 1,
-        image_url: bannerImageUrl.trim(),
-        is_active: true,
+      const payload = {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        tag: form.tag.trim().toUpperCase() || 'PROMO',
+        tag_bg: form.tagBg,
+        order_index: parseInt(form.order, 10) || 1,
+        image_url: form.imageUrl.trim(),
+        is_active: form.isActive,
       };
 
-      const { data, error } = await supabase
-        .from('banners')
-        .insert([newBanner])
-        .select();
-
-      if (error) throw error;
-
-      if (data && data[0]) {
-        setBanners([...banners, data[0] as Banner]);
+      if (editingId) {
+        const { error } = await supabase.from('banners').update(payload).eq('id', editingId);
+        if (error) throw error;
+        notify('success', 'Perubahan banner disimpan.');
+      } else {
+        const { error } = await supabase.from('banners').insert([payload]);
+        if (error) throw error;
+        notify('success', payload.is_active ? 'Banner baru ditayangkan.' : 'Banner disimpan sebagai nonaktif.');
       }
 
-      setIsBannerModalOpen(false);
-      resetBannerForm();
-      alert('Banner promo berhasil diterbitkan!');
+      setModalOpen(false);
+      await Promise.all([loadBanners(), loadAudit(0)]);
     } catch (err: unknown) {
-      const msg = (err as { message?: string } | null)?.message || 'Gagal menyimpan banner.';
-      alert(msg);
+      notify('error', errMsg(err, 'Gagal menyimpan banner.'));
     } finally {
-      setSavingBanner(false);
+      setSaving(false);
     }
   };
 
-  const resetBannerForm = () => {
-    setBannerTitle('');
-    setBannerDesc('');
-    setBannerTag('PROMO');
-    setBannerTagBg('#0284C7');
-    setBannerOrder('1');
-    setBannerImageUrl('');
+  /* ----- aksi baris ----- */
+
+  const toggleStatus = async (b: Banner) => {
+    setBusyId(b.id);
+    const { error } = await supabase.from('banners').update({ is_active: !b.is_active }).eq('id', b.id);
+    if (error) {
+      notify('error', errMsg(error, 'Gagal mengubah status.'));
+    } else {
+      setBanners((prev) => prev.map((x) => (x.id === b.id ? { ...x, is_active: !b.is_active } : x)));
+      notify('success', !b.is_active ? 'Banner ditayangkan.' : 'Banner dinonaktifkan.');
+      loadAudit(0);
+    }
+    setBusyId(null);
   };
 
-  // Toggle On/Off Banner
-  async function toggleBannerStatus(id: string, currentStatus: boolean) {
-    const { error } = await supabase
-      .from('banners')
-      .update({ is_active: !currentStatus })
-      .eq('id', id);
-
-    if (!error) {
-      setBanners(banners.map(b => b.id === id ? { ...b, is_active: !currentStatus } : b));
+  const duplicate = async (b: Banner) => {
+    setBusyId(b.id);
+    const nextOrder = Math.max(...banners.map((x) => x.order_index), 0) + 1;
+    const { error } = await supabase.from('banners').insert([
+      {
+        title: `${b.title} (salinan)`,
+        description: b.description,
+        tag: b.tag,
+        tag_bg: b.tag_bg,
+        order_index: nextOrder,
+        image_url: b.image_url,
+        is_active: false,
+      },
+    ]);
+    if (error) {
+      notify('error', errMsg(error, 'Gagal menggandakan banner.'));
+    } else {
+      notify('success', 'Salinan dibuat sebagai nonaktif.');
+      await Promise.all([loadBanners(), loadAudit(0)]);
     }
-  }
+    setBusyId(null);
+  };
 
-  // Hapus Banner
-  async function handleDeleteBanner(id: string) {
-    if (!confirm('Hapus banner promo ini?')) return;
-    const { error } = await supabase.from('banners').delete().eq('id', id);
-    if (!error) {
-      setBanners(banners.filter(b => b.id !== id));
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setBusyId(deleteTarget.id);
+    const { error } = await supabase.from('banners').delete().eq('id', deleteTarget.id);
+    if (error) {
+      notify('error', errMsg(error, 'Gagal menghapus banner.'));
+    } else {
+      setBanners((prev) => prev.filter((x) => x.id !== deleteTarget.id));
+      notify('success', 'Banner dihapus. Tercatat di Riwayat.');
+      loadAudit(0);
     }
-  }
+    setBusyId(null);
+    setDeleteTarget(null);
+  };
 
-  // Kirim siaran notifikasi lewat fungsi server
-  const handleSendBroadcast = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!notifTitle.trim() || !notifBody.trim()) {
-      alert('Judul dan pesan notifikasi tidak boleh kosong!');
-      return;
-    }
+  /** Geser banner satu posisi; semua nomor urut dirapikan jadi 1, 2, 3, ... */
+  const move = async (b: Banner, dir: -1 | 1) => {
+    const pos = sorted.findIndex((x) => x.id === b.id);
+    const target = pos + dir;
+    if (pos < 0 || target < 0 || target >= sorted.length) return;
 
-    setSendingNotif(true);
+    const next = [...sorted];
+    [next[pos], next[target]] = [next[target], next[pos]];
+    const changes = next
+      .map((x, i) => ({ id: x.id, order: i + 1, old: x.order_index }))
+      .filter((x) => x.order !== x.old);
+
+    setBusyId(b.id);
     try {
-      // Dikirim dari server (browser tidak boleh menembak langsung ke server Expo)
-      const { data, error } = await supabase.rpc('admin_broadcast_push', {
-        p_target: notifTarget,
-        p_title: notifTitle.trim(),
-        p_body: notifBody.trim(),
-      });
-      if (error) throw error;
-      const res = data as { success?: boolean; message?: string; count?: number } | null;
-      if (!res?.success) {
-        alert(res?.message || 'Siaran gagal dikirim.');
-        setSendingNotif(false);
-        return;
-      }
-
-      alert(`Notifikasi berhasil disiarkan ke ${res.count} perangkat!`);
-      setNotifTitle('');
-      setNotifBody('');
+      const results = await Promise.all(
+        changes.map((c) => supabase.from('banners').update({ order_index: c.order }).eq('id', c.id))
+      );
+      const failed = results.find((r) => r.error);
+      if (failed?.error) throw failed.error;
+      notify('success', 'Urutan banner diperbarui.');
     } catch (err: unknown) {
-      const msg = (err as { message?: string } | null)?.message || 'Terjadi kendala saat menyiarkan notifikasi.';
-      alert(msg);
-    } finally {
-      setSendingNotif(false);
+      notify('error', errMsg(err, 'Gagal mengubah urutan.'));
     }
+    await Promise.all([loadBanners(), loadAudit(0)]);
+    setBusyId(null);
   };
+
+  /* ----- tampilan ----- */
+
+  const canReorder = !filtersActive;
 
   return (
     <div className="max-w-7xl mx-auto space-y-5">
-      {/* Header Utama */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Banner dan Notifikasi</h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Banner Promo</h2>
           <p className="text-sm text-slate-500 mt-1">
-            Atur slider promo beranda aplikasi dan kirim pesan siaran instan ke ponsel pengguna
+            Atur slider promo di beranda aplikasi: tayang, urutan, dan riwayat perubahannya
           </p>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold border border-slate-200">
-          <button
-            onClick={() => setActiveTab('banners')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-              activeTab === 'banners' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Layers className="w-3.5 h-3.5" />
-            Banner Beranda ({banners.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('broadcast')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
-              activeTab === 'broadcast' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Bell className="w-3.5 h-3.5" />
-            Siaran Notifikasi (Push)
+        <div className="flex items-center gap-2">
+          <div className="flex bg-slate-100 p-1 rounded-xl text-xs font-semibold border border-slate-200">
+            <button
+              onClick={() => setTab('banners')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                tab === 'banners' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              Banner ({banners.length})
+            </button>
+            <button
+              onClick={() => setTab('history')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-all ${
+                tab === 'history' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              Riwayat
+            </button>
+          </div>
+          <button onClick={openNew} className={BTN_PRIMARY}>
+            <Plus className="w-4 h-4" />
+            Tambah Banner
           </button>
         </div>
       </div>
 
-      {/* KONTEN TAB 1: MANAJEMEN BANNER PROMO */}
-      {activeTab === 'banners' && (
-        <div className="space-y-4">
-          <div className="flex justify-between items-center bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-            <span className="text-xs text-slate-600">
-              Urutan slider mengikuti <b>Nomor Urut</b>. Format foto ideal: <b>16:9 atau 2:1</b>.
-            </span>
-            <button
-              onClick={() => { resetBannerForm(); setIsBannerModalOpen(true); }}
-              className="flex items-center gap-1.5 bg-gradient-to-br from-[#4a98ad] to-[#2f7088] text-white px-4 py-2 rounded-full text-xs font-bold shadow-[4px_6px_12px_rgba(36,76,96,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-105 transition-all"
-            >
-              <Plus className="w-4 h-4" />
-              Tambah Banner Promo
-            </button>
-          </div>
+      {/* Ringkasan */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard icon={<Layers className="w-4 h-4" />} label="Total banner" value={banners.length} hint="Semua yang tersimpan" tone="blue" />
+        <StatCard icon={<CheckCircle2 className="w-4 h-4" />} label="Sedang tayang" value={activeCount} hint="Terlihat di aplikasi" tone="green" />
+        <StatCard icon={<XCircle className="w-4 h-4" />} label="Nonaktif" value={inactiveCount} hint="Disimpan, belum tayang" tone="rose" />
+        <StatCard
+          icon={<History className="w-4 h-4" />}
+          label="Perubahan terakhir"
+          value={lastChange ? timeAgo(lastChange.created_at) : '-'}
+          hint={lastChange?.actor_email || 'Belum ada catatan'}
+          tone="slate"
+        />
+      </div>
 
-          {/* Grid List Banner */}
-          {loading ? (
-            <div className="py-12 text-center text-slate-500 flex items-center justify-center gap-2 text-xs">
-              <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> Memuat banner promo...
+      {/* ============ TAB BANNER ============ */}
+      {tab === 'banners' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+          <div className="lg:col-span-2 space-y-4">
+            {/* Toolbar */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-2 sm:items-center">
+              <div className="relative flex-1">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Cari judul, keterangan, atau label..."
+                  className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs focus:outline-blue-500"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
+                className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white focus:outline-blue-500"
+              >
+                <option value="all">Semua status</option>
+                <option value="active">Tayang</option>
+                <option value="inactive">Nonaktif</option>
+              </select>
+              <div className="flex bg-slate-100 p-0.5 rounded-lg border border-slate-200">
+                <button
+                  onClick={() => setView('grid')}
+                  title="Tampilan kartu"
+                  className={`p-1.5 rounded-md ${view === 'grid' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => setView('list')}
+                  title="Tampilan daftar"
+                  className={`p-1.5 rounded-md ${view === 'list' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500'}`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
-          ) : banners.length === 0 ? (
-            <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200 text-xs">
-              Belum ada banner promo aktif di aplikasi.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {banners.map((b) => (
-                <div key={b.id} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
-                  {/* Preview Banner */}
-                  <div className="relative aspect-[16/8] bg-slate-100 border-b border-slate-100 overflow-hidden group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={b.image_url || '/placeholder.png'}
-                      alt={b.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <span 
-                      className="absolute top-2.5 left-2.5 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow"
-                      style={{ backgroundColor: b.tag_bg || '#0284C7' }}
+
+            {filtersActive && (
+              <div className="text-[11px] text-slate-500 flex items-center gap-2">
+                Menampilkan {filtered.length} dari {banners.length} banner. Pengurutan dimatikan saat ada filter.
+                <button
+                  onClick={() => {
+                    setSearch('');
+                    setStatusFilter('all');
+                  }}
+                  className="text-blue-600 font-bold hover:underline"
+                >
+                  Hapus filter
+                </button>
+              </div>
+            )}
+
+            {/* Daftar */}
+            {loading ? (
+              <div className="py-12 text-center text-slate-500 flex items-center justify-center gap-2 text-xs">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> Memuat banner promo...
+              </div>
+            ) : loadError ? (
+              <div className="py-10 text-center bg-white rounded-xl border border-rose-200 text-xs text-rose-600 space-y-3">
+                <div>{loadError}</div>
+                <button onClick={loadBanners} className={`${BTN_GHOST} mx-auto`}>
+                  <RefreshCw className="w-3.5 h-3.5" /> Coba lagi
+                </button>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200 text-xs">
+                {banners.length === 0 ? 'Belum ada banner promo. Klik "Tambah Banner" untuk membuat yang pertama.' : 'Tidak ada banner yang cocok dengan pencarian.'}
+              </div>
+            ) : view === 'grid' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filtered.map((b) => {
+                  const pos = sorted.findIndex((x) => x.id === b.id);
+                  return (
+                    <div
+                      key={b.id}
+                      className={`bg-white rounded-xl border shadow-sm overflow-hidden flex flex-col ${
+                        b.is_active ? 'border-slate-200' : 'border-slate-200 opacity-80'
+                      }`}
                     >
-                      {b.tag}
-                    </span>
-                    <span className="absolute top-2.5 right-2.5 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded backdrop-blur-sm">
-                      Urut #{b.order_index}
-                    </span>
-                  </div>
-
-                  {/* Info Banner */}
-                  <div className="p-3.5 flex-1 flex flex-col justify-between">
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm leading-snug">{b.title}</h4>
-                      <p className="text-slate-500 text-xs mt-1 line-clamp-2">{b.description || 'Tidak ada keterangan tambahan.'}</p>
-                    </div>
-
-                    <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between">
-                      <button
-                        onClick={() => toggleBannerStatus(b.id, b.is_active)}
-                        className={`inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full font-bold uppercase ${
-                          b.is_active 
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}
-                      >
-                        {b.is_active ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                        {b.is_active ? 'Tayang' : 'Nonaktif'}
-                      </button>
-
-                      <div className="flex items-center gap-1.5">
-                        <a
-                          href={b.image_url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
-                          title="Lihat Gambar Penuh"
+                      <div className="relative aspect-[16/8] bg-slate-100 border-b border-slate-100 overflow-hidden group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={b.image_url}
+                          alt={b.title}
+                          className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-300 ${
+                            b.is_active ? '' : 'grayscale'
+                          }`}
+                        />
+                        <span
+                          className="absolute top-2.5 left-2.5 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow"
+                          style={{ backgroundColor: b.tag_bg || '#0284C7' }}
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                        </a>
-                        <button
-                          onClick={() => handleDeleteBanner(b.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                          title="Hapus Banner"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          {b.tag}
+                        </span>
+                        <span className="absolute top-2.5 right-2.5 bg-black/60 text-white text-[10px] font-bold px-2 py-0.5 rounded backdrop-blur-sm">
+                          Urut #{b.order_index}
+                        </span>
+                      </div>
+
+                      <div className="p-3.5 flex-1 flex flex-col justify-between">
+                        <div>
+                          <h4 className="font-bold text-slate-900 text-sm leading-snug">{b.title}</h4>
+                          <p className="text-slate-500 text-xs mt-1 line-clamp-2">
+                            {b.description || 'Tidak ada keterangan tambahan.'}
+                          </p>
+                          <p className="text-[10px] text-slate-400 mt-2">Dibuat {fmtDateTime(b.created_at)}</p>
+                        </div>
+
+                        <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between">
+                          <StatusPill active={b.is_active} onClick={() => toggleStatus(b)} disabled={busyId === b.id} />
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => move(b, -1)}
+                              disabled={!canReorder || busyId !== null || pos <= 0}
+                              className={ICON_BTN}
+                              title="Naikkan urutan"
+                            >
+                              <ArrowUp className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => move(b, 1)}
+                              disabled={!canReorder || busyId !== null || pos >= sorted.length - 1}
+                              className={ICON_BTN}
+                              title="Turunkan urutan"
+                            >
+                              <ArrowDown className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => openEdit(b)} className={ICON_BTN} title="Ubah banner">
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => duplicate(b)} disabled={busyId !== null} className={ICON_BTN} title="Gandakan">
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+                            <a href={b.image_url} target="_blank" rel="noreferrer" className={ICON_BTN} title="Lihat gambar penuh">
+                              <Eye className="w-3.5 h-3.5" />
+                            </a>
+                            <button
+                              onClick={() => setDeleteTarget(b)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                              title="Hapus banner"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              ))}
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead className="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wide">
+                    <tr>
+                      <th className="text-left font-semibold px-3 py-2.5 w-14">Urut</th>
+                      <th className="text-left font-semibold px-3 py-2.5">Banner</th>
+                      <th className="text-left font-semibold px-3 py-2.5 w-28">Status</th>
+                      <th className="text-right font-semibold px-3 py-2.5 w-44">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filtered.map((b) => {
+                      const pos = sorted.findIndex((x) => x.id === b.id);
+                      return (
+                        <tr key={b.id} className="hover:bg-slate-50/60">
+                          <td className="px-3 py-2.5 font-bold text-slate-500">#{b.order_index}</td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center gap-3">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={b.image_url} alt="" className="w-20 aspect-[16/8] object-cover rounded-md border border-slate-200 bg-slate-100" />
+                              <div className="min-w-0">
+                                <div className="font-bold text-slate-800 truncate">{b.title}</div>
+                                <div className="text-slate-500 truncate">{b.description || 'Tidak ada keterangan.'}</div>
+                                <span
+                                  className="inline-block mt-1 text-white text-[9px] font-bold px-1.5 py-0.5 rounded"
+                                  style={{ backgroundColor: b.tag_bg || '#0284C7' }}
+                                >
+                                  {b.tag}
+                                </span>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <StatusPill active={b.is_active} onClick={() => toggleStatus(b)} disabled={busyId === b.id} />
+                          </td>
+                          <td className="px-3 py-2.5">
+                            <div className="flex items-center justify-end">
+                              <button onClick={() => move(b, -1)} disabled={!canReorder || busyId !== null || pos <= 0} className={ICON_BTN} title="Naikkan">
+                                <ArrowUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => move(b, 1)} disabled={!canReorder || busyId !== null || pos >= sorted.length - 1} className={ICON_BTN} title="Turunkan">
+                                <ArrowDown className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => openEdit(b)} className={ICON_BTN} title="Ubah">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => duplicate(b)} disabled={busyId !== null} className={ICON_BTN} title="Gandakan">
+                                <Copy className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => setDeleteTarget(b)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg" title="Hapus">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <p className="text-[11px] text-slate-400">
+              Urutan slider mengikuti <b>Nomor Urut</b>. Format foto ideal <b>16:9 atau 2:1</b>, maksimal 2 MB. Banner nonaktif tidak tampil di aplikasi.
+            </p>
+          </div>
+
+          <div className="lg:sticky lg:top-4">
+            <PhonePreview banners={previewBanners} />
+          </div>
+        </div>
+      )}
+
+      {/* ============ TAB RIWAYAT ============ */}
+      {tab === 'history' && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row gap-2 sm:items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <History className="w-4 h-4 text-blue-600" /> Riwayat Perubahan Banner
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Dicatat otomatis oleh sistem setiap banner dibuat, diubah, atau dihapus. Tidak bisa diedit dari sini.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={auditSearch}
+                  onChange={(e) => setAuditSearch(e.target.value)}
+                  placeholder="Cari judul atau pengubah..."
+                  className="pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-xs w-52 focus:outline-blue-500"
+                />
+              </div>
+              <select
+                value={auditFilter}
+                onChange={(e) => setAuditFilter(e.target.value as AuditFilter)}
+                className="px-3 py-2 border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 bg-white"
+              >
+                <option value="all">Semua aksi</option>
+                <option value="INSERT">Dibuat</option>
+                <option value="UPDATE">Diubah</option>
+                <option value="DELETE">Dihapus</option>
+              </select>
+            </div>
+          </div>
+
+          {auditError ? (
+            <div className="p-8 text-center text-xs text-rose-600">{auditError}</div>
+          ) : filteredAudit.length === 0 && !auditLoading ? (
+            <div className="p-10 text-center text-xs text-slate-400">Belum ada catatan perubahan.</div>
+          ) : (
+            <ul className="divide-y divide-slate-100">
+              {filteredAudit.map((a) => {
+                const row = a.new_row || a.old_row;
+                const changes = a.action === 'UPDATE' ? diffRows(a.old_row, a.new_row) : [];
+                const badge =
+                  a.action === 'INSERT'
+                    ? { text: 'Dibuat', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
+                    : a.action === 'UPDATE'
+                    ? { text: 'Diubah', cls: 'bg-blue-50 text-blue-700 border-blue-200' }
+                    : { text: 'Dihapus', cls: 'bg-rose-50 text-rose-700 border-rose-200' };
+                return (
+                  <li key={a.id} className="p-4 flex gap-3">
+                    {row?.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={row.image_url} alt="" className="w-20 aspect-[16/8] object-cover rounded-md border border-slate-200 bg-slate-100 shrink-0 self-start" />
+                    ) : (
+                      <div className="w-20 aspect-[16/8] rounded-md bg-slate-100 shrink-0 self-start" />
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${badge.cls}`}>{badge.text}</span>
+                        <span className="text-xs font-bold text-slate-800 truncate">{row?.title || '(tanpa judul)'}</span>
+                      </div>
+                      {changes.length > 0 && (
+                        <ul className="mt-1.5 space-y-0.5">
+                          {changes.map((c) => (
+                            <li key={c.label} className="text-[11px] text-slate-600">
+                              <span className="font-semibold">{c.label}:</span>{' '}
+                              <span className="text-slate-400 line-through">{c.from}</span> → <span className="font-semibold text-slate-800">{c.to}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="text-[11px] text-slate-400 mt-1.5">
+                        {fmtDateTime(a.created_at)} · oleh {a.actor_email || 'sistem'}
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {!auditError && audit.length < auditTotal && (
+            <div className="p-3 border-t border-slate-100 flex justify-center">
+              <button onClick={() => loadAudit(audit.length)} disabled={auditLoading} className={BTN_GHOST}>
+                {auditLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
+                Muat lebih banyak ({audit.length} dari {auditTotal})
+              </button>
             </div>
           )}
         </div>
       )}
 
-      {/* KONTEN TAB 2: BROADCAST PUSH NOTIFICATION */}
-      {activeTab === 'broadcast' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Form Pengiriman */}
-          <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-5 shadow-sm space-y-4">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Bell className="w-4 h-4 text-blue-600" />
-                Kirim Siaran Notifikasi (Push Notification)
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Pesan ini akan langsung muncul di panel bar notifikasi ponsel pengguna secara serentak.
-              </p>
-            </div>
-
-            <form onSubmit={handleSendBroadcast} className="space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Target Pengguna</label>
-                <div className="grid grid-cols-3 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setNotifTarget('all')}
-                    className={`py-2 px-3 rounded-lg border text-center font-medium transition-all ${
-                      notifTarget === 'all' 
-                        ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Semua Warga ({targetTokenCount})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNotifTarget('users')}
-                    className={`py-2 px-3 rounded-lg border text-center font-medium transition-all ${
-                      notifTarget === 'users' 
-                        ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Pencari Hunian
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setNotifTarget('partners')}
-                    className={`py-2 px-3 rounded-lg border text-center font-medium transition-all ${
-                      notifTarget === 'partners' 
-                        ? 'bg-blue-50 border-blue-500 text-blue-700 font-bold' 
-                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    Mitra Sobat Tolongin
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Judul Notifikasi *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Promo Spesial Kost Dekat Unpad"
-                  value={notifTitle}
-                  onChange={(e) => setNotifTitle(e.target.value)}
-                  className="w-full p-2.5 border rounded-lg focus:outline-blue-500 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Isi Pesan Singkat *</label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Contoh: Dapatkan diskon sewa bulan pertama untuk 5 kosan pilihan di Jatinangor hari ini..."
-                  value={notifBody}
-                  onChange={(e) => setNotifBody(e.target.value)}
-                  className="w-full p-2.5 border rounded-lg focus:outline-blue-500 leading-relaxed"
-                />
-              </div>
-
-              <div className="pt-2 flex justify-end">
-                <button
-                  type="submit"
-                  disabled={sendingNotif}
-                  className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-br from-[#4a98ad] to-[#2f7088] text-white rounded-full font-bold shadow-[4px_6px_12px_rgba(36,76,96,0.35),inset_0_1px_0_rgba(255,255,255,0.35)] hover:brightness-105 transition-all disabled:opacity-50"
-                >
-                  {sendingNotif ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  Siarkan Notifikasi Sekarang
-                </button>
-              </div>
-            </form>
-          </div>
-
-          {/* Preview Tampilan di Handphone Pengguna */}
-          <div className="bg-slate-50 rounded-xl border border-slate-200 p-5 flex flex-col items-center justify-center">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-4">
-              Simulasi Tampilan di Handphone
-            </span>
-
-            <div className="w-full max-w-[280px] bg-white rounded-2xl border border-slate-300 p-3 shadow-md space-y-2">
-              <div className="flex items-center justify-between pb-1 border-b border-slate-100">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-4 h-4 rounded bg-blue-500 flex items-center justify-center text-white text-[9px] font-bold">
-                    K
-                  </div>
-                  <span className="text-[10px] font-bold text-slate-800">Kamar Kita</span>
-                </div>
-                <span className="text-[9px] text-slate-400">Baru saja</span>
-              </div>
-
-              <div>
-                <div className="font-bold text-xs text-slate-900 leading-snug">
-                  {notifTitle || 'Judul Notifikasi...'}
-                </div>
-                <div className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                  {notifBody || 'Pesan notifikasi siaran akan muncul seperti ini di layar ponsel warga...'}
-                </div>
-              </div>
-            </div>
-
-            <p className="text-[10px] text-slate-400 text-center mt-4">
-              Terkoneksi langsung ke {targetTokenCount} perangkat yang memasang aplikasi Kamar Kita.
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Tambah Banner Promo Baru */}
-      {isBannerModalOpen && (
+      {/* ============ MODAL TAMBAH / UBAH ============ */}
+      {modalOpen && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-100">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-slate-100">
             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="font-bold text-slate-900 text-sm">Tambah Banner Promo Baru</h3>
-              <button onClick={() => setIsBannerModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
+              <h3 className="font-bold text-slate-900 text-sm">{editingId ? 'Ubah Banner Promo' : 'Tambah Banner Promo Baru'}</h3>
+              <button onClick={() => setModalOpen(false)} className="p-1 text-slate-400 hover:text-slate-600">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveBanner} className="p-5 overflow-y-auto space-y-4 text-xs">
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Judul Banner *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Diskon Sewa Awal Semester"
-                  value={bannerTitle}
-                  onChange={(e) => setBannerTitle(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:outline-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Keterangan Singkat</label>
-                <textarea
-                  rows={2}
-                  placeholder="Contoh: Khusus kost putri area Caringin & Sayang"
-                  value={bannerDesc}
-                  onChange={(e) => setBannerDesc(e.target.value)}
-                  className="w-full p-2 border rounded-lg focus:outline-blue-500"
-                />
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Tag Label</label>
-                  <input
-                    type="text"
-                    placeholder="PROMO / INFO"
-                    value={bannerTag}
-                    onChange={(e) => setBannerTag(e.target.value)}
-                    className="w-full p-2 border rounded-lg focus:outline-blue-500 font-bold uppercase"
-                  />
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Warna Badge</label>
-                  <div className="flex items-center gap-2 border rounded-lg p-1.5">
+            <form onSubmit={handleSave} className="overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-5 p-5 text-xs">
+                <div className="md:col-span-3 space-y-4">
+                  <div>
+                    <label className="font-semibold text-slate-700 flex justify-between mb-1">
+                      <span>Judul Banner *</span>
+                      <span className="text-slate-400 font-normal">{form.title.length}/60</span>
+                    </label>
                     <input
-                      type="color"
-                      value={bannerTagBg}
-                      onChange={(e) => setBannerTagBg(e.target.value)}
-                      className="w-6 h-6 border-0 p-0 rounded cursor-pointer"
+                      type="text"
+                      maxLength={60}
+                      required
+                      placeholder="Contoh: Diskon Sewa Awal Semester"
+                      value={form.title}
+                      onChange={(e) => setField('title', e.target.value)}
+                      className="w-full p-2 border border-slate-200 rounded-lg focus:outline-blue-500"
                     />
-                    <span className="font-mono text-[10px] text-slate-600 uppercase">{bannerTagBg}</span>
                   </div>
-                </div>
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Urutan</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={bannerOrder}
-                    onChange={(e) => setBannerOrder(e.target.value)}
-                    className="w-full p-2 border rounded-lg focus:outline-blue-500"
-                  />
-                </div>
-              </div>
 
-              {/* Upload Gambar Banner */}
-              <div>
-                <label className="font-semibold text-slate-700 block mb-1">Gambar Banner (16:9 / 2:1) *</label>
-                <label className={`w-full border-2 border-dashed border-blue-300 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer bg-blue-50/40 hover:bg-blue-50 transition-all ${
-                  uploadingImage ? 'opacity-50 pointer-events-none' : ''
-                }`}>
-                  <Upload className="w-5 h-5 text-blue-600" />
-                  <span className="text-xs font-bold text-blue-600">
-                    {uploadingImage ? 'Mengunggah gambar...' : '+ Pilih Banner Dari Laptop (Maks. 2MB)'}
-                  </span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    className="hidden"
-                    disabled={uploadingImage}
-                  />
-                </label>
+                  <div>
+                    <label className="font-semibold text-slate-700 flex justify-between mb-1">
+                      <span>Keterangan Singkat</span>
+                      <span className="text-slate-400 font-normal">{form.description.length}/90</span>
+                    </label>
+                    <textarea
+                      rows={2}
+                      maxLength={90}
+                      placeholder="Contoh: Khusus kost putri area Caringin & Sayang"
+                      value={form.description}
+                      onChange={(e) => setField('description', e.target.value)}
+                      className="w-full p-2 border border-slate-200 rounded-lg focus:outline-blue-500"
+                    />
+                  </div>
 
-                {bannerImageUrl && (
-                  <div className="relative aspect-[16/8] rounded-xl overflow-hidden border border-slate-200 mt-2 bg-slate-100">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={bannerImageUrl} alt="Preview Banner" className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => setBannerImageUrl('')}
-                      className="absolute top-2 right-2 bg-rose-600 text-white rounded-full p-1 shadow"
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">Label</label>
+                      <input
+                        type="text"
+                        maxLength={12}
+                        placeholder="PROMO"
+                        value={form.tag}
+                        onChange={(e) => setField('tag', e.target.value)}
+                        className="w-full p-2 border border-slate-200 rounded-lg focus:outline-blue-500 font-bold uppercase"
+                      />
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">Warna Badge</label>
+                      <div className="flex items-center gap-2 border border-slate-200 rounded-lg p-1.5">
+                        <input
+                          type="color"
+                          value={form.tagBg}
+                          onChange={(e) => setField('tagBg', e.target.value)}
+                          className="w-6 h-6 border-0 p-0 rounded cursor-pointer"
+                        />
+                        <span className="font-mono text-[10px] text-slate-600 uppercase">{form.tagBg}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="font-semibold text-slate-700 block mb-1">Nomor Urut</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={form.order}
+                        onChange={(e) => setField('order', e.target.value)}
+                        className="w-full p-2 border border-slate-200 rounded-lg focus:outline-blue-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-semibold text-slate-700 block mb-1">Gambar Banner (16:9 / 2:1) *</label>
+                    <label
+                      className={`w-full border-2 border-dashed border-blue-300 rounded-xl p-4 flex flex-col items-center justify-center gap-1.5 cursor-pointer bg-blue-50/40 hover:bg-blue-50 transition-all ${
+                        uploadingImage ? 'opacity-50 pointer-events-none' : ''
+                      }`}
                     >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
+                      {uploadingImage ? <Loader2 className="w-5 h-5 text-blue-600 animate-spin" /> : <Upload className="w-5 h-5 text-blue-600" />}
+                      <span className="text-xs font-bold text-blue-600">
+                        {uploadingImage ? 'Mengunggah gambar...' : form.imageUrl ? 'Ganti gambar' : '+ Pilih gambar dari laptop (maks. 2 MB)'}
+                      </span>
+                      <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" disabled={uploadingImage} />
+                    </label>
                   </div>
-                )}
+
+                  <label className="flex items-center gap-2.5 p-3 bg-slate-50 border border-slate-200 rounded-lg cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.isActive}
+                      onChange={(e) => setField('isActive', e.target.checked)}
+                      className="w-4 h-4 accent-blue-600"
+                    />
+                    <span>
+                      <span className="font-bold text-slate-800 block">Langsung tayangkan di aplikasi</span>
+                      <span className="text-slate-500">Hilangkan centang untuk menyimpannya sebagai draf nonaktif.</span>
+                    </span>
+                  </label>
+                </div>
+
+                {/* Pratinjau kartu */}
+                <div className="md:col-span-2">
+                  <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-2">Pratinjau</div>
+                  <div className="relative aspect-[16/8] rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shadow-sm">
+                    {form.imageUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={form.imageUrl} alt="Pratinjau" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[11px] text-slate-400">Belum ada gambar</div>
+                    )}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
+                    <span
+                      className="absolute top-2 left-2 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow"
+                      style={{ backgroundColor: form.tagBg }}
+                    >
+                      {form.tag.trim().toUpperCase() || 'PROMO'}
+                    </span>
+                    <div className="absolute bottom-2 left-3 right-3">
+                      <div className="text-white text-xs font-extrabold leading-tight line-clamp-2">{form.title || 'Judul banner'}</div>
+                      <div className="text-white/80 text-[10px] leading-tight line-clamp-1 mt-0.5">{form.description || 'Keterangan singkat'}</div>
+                    </div>
+                  </div>
+                  {form.imageUrl && (
+                    <button type="button" onClick={() => setField('imageUrl', '')} className="mt-2 text-[11px] text-rose-600 font-semibold hover:underline">
+                      Hapus gambar ini
+                    </button>
+                  )}
+                  <p className="text-[11px] text-slate-400 mt-3 leading-relaxed">
+                    Teks di atas gambar bisa terpotong di layar HP yang kecil. Pakai judul yang singkat.
+                  </p>
+                </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t">
-                <button
-                  type="button"
-                  onClick={() => setIsBannerModalOpen(false)}
-                  className="px-3.5 py-1.5 border rounded-lg hover:bg-slate-50"
-                >
+              <div className="flex justify-end gap-2 px-5 py-3 border-t border-slate-100 bg-slate-50">
+                <button type="button" onClick={() => setModalOpen(false)} className={BTN_GHOST}>
                   Batal
                 </button>
-                <button
-                  type="submit"
-                  disabled={savingBanner || uploadingImage}
-                  className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {savingBanner ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                  Terbitkan Banner
+                <button type="submit" disabled={saving || uploadingImage} className={BTN_PRIMARY}>
+                  {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                  {editingId ? 'Simpan Perubahan' : 'Terbitkan Banner'}
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* ============ KONFIRMASI HAPUS ============ */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-sm w-full shadow-2xl border border-slate-100 p-5 text-center">
+            <div className="w-11 h-11 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <h3 className="font-bold text-slate-900 text-sm mt-3">Hapus banner ini?</h3>
+            <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+              <b>{deleteTarget.title}</b> akan hilang dari aplikasi. Kalau hanya ingin berhenti menayangkan sementara, lebih baik <b>nonaktifkan</b>.
+              Penghapusan tetap tercatat di Riwayat.
+            </p>
+            <div className="flex gap-2 mt-5">
+              <button onClick={() => setDeleteTarget(null)} className={`${BTN_GHOST} flex-1`}>
+                Batal
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={busyId === deleteTarget.id}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3.5 py-2 bg-rose-600 text-white rounded-lg text-xs font-bold hover:bg-rose-700 disabled:opacity-50"
+              >
+                {busyId === deleteTarget.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                Ya, hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Toast toast={toast} onClose={closeToast} />
     </div>
   );
 }
