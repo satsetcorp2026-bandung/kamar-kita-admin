@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Loader2, X, Plus, Trash2, ArrowUp, ArrowDown, Edit, Globe } from 'lucide-react';
+import { Loader2, X, Plus, Trash2, ArrowUp, ArrowDown, Edit, Eye } from 'lucide-react';
 
 // ---------------------------------------------------------------------
 // Konten Website: Admin menulis draf, hanya Pemilik yang menerbitkan.
@@ -31,6 +31,8 @@ interface DefBlok {
   jenis: 'bidang' | 'faq';
   bidang?: Bidang[];
   faqBawaan?: FaqItem[];
+  // ringkasan isi untuk kolom "Isi saat ini" di tabel
+  ringkas: (n: Record<string, string>, f: FaqItem[]) => string;
 }
 
 interface Tayang {
@@ -49,12 +51,16 @@ interface Draf {
   diajukan_pada: string | null;
 }
 
+type Kategori = 'tayang' | 'menunggu' | 'draf' | 'bawaan';
+type Tab = 'semua' | Kategori;
+
 const BLOK: DefBlok[] = [
   {
     kunci: 'beranda.hero',
     judul: 'Beranda: bagian atas',
     deskripsi: 'Lencana wilayah, judul besar, tombol unduh, dan catatan di bawah layar HP.',
     jenis: 'bidang',
+    ringkas: (n) => `${n.judul ?? ''} ${n.sorot ?? ''}`.trim(),
     bidang: [
       { k: 'label', nama: 'Lencana wilayah', maks: 80, bawaan: 'Melayani Jatinangor, Cileunyi, Rancaekek, dan sekitarnya' },
       { k: 'judul', nama: 'Judul baris pertama', maks: 30, bawaan: 'Sepakat,' },
@@ -71,6 +77,7 @@ const BLOK: DefBlok[] = [
     judul: 'Beranda: banner unduh aplikasi',
     deskripsi: 'Banner biru di bagian paling bawah beranda. Ada dua versi: sebelum dan sesudah aplikasi rilis.',
     jenis: 'bidang',
+    ringkas: (n) => n.judulSegera ?? '',
     bidang: [
       { k: 'judulSegera', nama: 'Judul sebelum rilis', maks: 60, bawaan: 'Sebentar lagi di Google Play.' },
       { k: 'isiSegera', nama: 'Penjelasan sebelum rilis', panjang: true, maks: 240, bawaan: 'Kami sedang menyiapkan rilis pertama. Hubungi admin, nanti kami kabari begitu aplikasinya bisa diunduh.' },
@@ -85,6 +92,7 @@ const BLOK: DefBlok[] = [
     judul: 'Tautan unduh aplikasi',
     deskripsi: 'Mengisi tautan Google Play mengubah seluruh website dari "Segera hadir" menjadi "Unduh". Biarkan kosong sampai aplikasi benar-benar rilis.',
     jenis: 'bidang',
+    ringkas: (n) => (n.playStoreUrl ? `Google Play: ${n.playStoreUrl}` : 'Google Play belum diisi (website menampilkan "Segera hadir")'),
     bidang: [
       { k: 'playStoreUrl', nama: 'Tautan Google Play', bantuan: 'Contoh: https://play.google.com/store/apps/details?id=id.pimpim.app. Kosong = website menampilkan "Segera hadir".', maks: 300, url: true, bawaan: '' },
       { k: 'appStoreUrl', nama: 'Tautan App Store', bantuan: 'Kosongkan kalau versi iPhone belum rilis.', maks: 300, url: true, bawaan: '' },
@@ -95,6 +103,7 @@ const BLOK: DefBlok[] = [
     judul: 'FAQ (tanya-jawab)',
     deskripsi: 'Daftar pertanyaan di halaman Bantuan. Bisa ditambah, diubah, dan diurutkan.',
     jenis: 'faq',
+    ringkas: (_n, f) => `${f.length} pertanyaan`,
     faqBawaan: [
       { q: 'Di mana Pimpim bisa dipakai?', a: 'Saat ini di Jatinangor, Cileunyi, Rancaekek, dan sekitarnya. Tujuanmu boleh di mana saja, termasuk Bandung, selama ada driver di dekat titik jemputmu. Wilayah lain menyusul.' },
       { q: 'Bagaimana cara membayar?', a: 'Saat ini kamu membayar tunai langsung ke driver setelah sampai di tujuan.' },
@@ -175,6 +184,7 @@ export default function KontenWebsitePage() {
   const [loadError, setLoadError] = useState('');
   const [tick, setTick] = useState(0);
   const [notif, setNotif] = useState('');
+  const [tab, setTab] = useState<Tab>('semua');
 
   const [kunciBuka, setKunciBuka] = useState<string | null>(null);
   const [nilai, setNilai] = useState<Record<string, string>>({});
@@ -226,7 +236,33 @@ export default function KontenWebsitePage() {
   const sudahTayang = def ? !!tayang[def.kunci] : false;
   const bisaTerbitkan = isOwner && (kotor || adaDraf || !sudahTayang);
   const bisaAjukan = !isOwner && (kotor || (adaDraf && !menunggu));
-  const jumlahMenunggu = Object.values(draf).filter((x) => x.status === 'menunggu').length;
+
+  const kategoriBlok = (kunci: string): Kategori => {
+    const d = draf[kunci];
+    if (d) return d.status === 'menunggu' ? 'menunggu' : 'draf';
+    if (tayang[kunci]) return 'tayang';
+    return 'bawaan';
+  };
+  const jumlahKat = (k: Kategori) => BLOK.filter((b) => kategoriBlok(b.kunci) === k).length;
+  const jumlahTayang = BLOK.filter((b) => !!tayang[b.kunci]).length;
+  const jumlahMenunggu = BLOK.filter((b) => draf[b.kunci]?.status === 'menunggu').length;
+  const jumlahDitolak = BLOK.filter((b) => draf[b.kunci]?.status === 'draf' && !!draf[b.kunci]?.catatan).length;
+  const tampil = tab === 'semua' ? BLOK : BLOK.filter((b) => kategoriBlok(b.kunci) === tab);
+
+  const tabs: { key: Tab; label: string; count: number }[] = [
+    { key: 'semua', label: 'Semua', count: BLOK.length },
+    { key: 'tayang', label: 'Tayang', count: jumlahKat('tayang') },
+    { key: 'menunggu', label: 'Menunggu Pemilik', count: jumlahKat('menunggu') },
+    { key: 'draf', label: 'Draf', count: jumlahKat('draf') },
+    { key: 'bawaan', label: 'Teks bawaan', count: jumlahKat('bawaan') },
+  ];
+
+  const ringkasanSaatIni = (d: DefBlok): string => {
+    const sumber = tayang[d.kunci] ? tayang[d.kunci].isi : null;
+    const n = bacaNilai(d.bidang ?? [], sumber);
+    const f = d.jenis === 'faq' ? bacaFaq(sumber, d.faqBawaan ?? []) : [];
+    return d.ringkas(n, f);
+  };
 
   const buka = (d: DefBlok) => {
     const dr = draf[d.kunci];
@@ -375,21 +411,19 @@ export default function KontenWebsitePage() {
   const statusBlok = (kunci: string): { label: string; kelas: string } => {
     const d = draf[kunci];
     if (d) {
-      if (d.status === 'menunggu') return { label: 'Menunggu persetujuan Pemilik', kelas: 'bg-amber-50 text-amber-700 border border-amber-200' };
-      if (d.catatan) return { label: 'Ditolak, perlu diperbaiki', kelas: 'bg-rose-50 text-rose-700 border border-rose-200' };
-      return { label: 'Ada draf', kelas: 'bg-blue-50 text-blue-700 border border-blue-200' };
+      if (d.status === 'menunggu') return { label: 'Menunggu Pemilik', kelas: 'bg-amber-50 text-amber-700 border border-amber-200' };
+      if (d.catatan) return { label: 'Ditolak', kelas: 'bg-rose-50 text-rose-700 border border-rose-200' };
+      return { label: 'Draf', kelas: 'bg-blue-50 text-blue-700 border border-blue-200' };
     }
     if (tayang[kunci]) return { label: 'Tayang', kelas: 'bg-emerald-50 text-emerald-700 border border-emerald-200' };
-    return { label: 'Memakai teks bawaan website', kelas: 'bg-slate-100 text-slate-600 border border-slate-200' };
+    return { label: 'Teks bawaan', kelas: 'bg-slate-200/70 text-slate-700 border border-slate-200' };
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="max-w-7xl mx-auto space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800 flex items-center gap-2.5">
-            <Globe className="w-7 h-7 text-slate-500" /> Konten Website
-          </h2>
+          <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-800">Konten Website</h2>
           <p className="text-sm text-slate-500 mt-1">
             Atur teks di website Pimpim. Admin menulis draf, Pemilik yang menerbitkan.
           </p>
@@ -402,71 +436,138 @@ export default function KontenWebsitePage() {
         </button>
       </div>
 
-      <div className="rounded-2xl border border-blue-200 bg-blue-50/70 px-4 py-3 text-[13px] text-blue-900 leading-relaxed">
-        <b>Penting:</b> konten yang sudah terbit <b>baru tampil di website setelah website dibangun ulang dan diunggah</b>{' '}
-        (di folder proyek website: <code className="font-mono">npm run build</code>, lalu unggah isi folder{' '}
-        <code className="font-mono">out</code> ke hosting). Draf tidak pernah terlihat oleh pengunjung.
+      {/* Kartu ringkasan */}
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        {[
+          { label: 'Blok konten', value: BLOK.length, sub: 'Bisa diatur dari sini', cls: 'from-[#d0dae6] to-[#b3c3d4]', num: 'text-slate-800' },
+          { label: 'Tayang', value: jumlahTayang, sub: 'Sudah diterbitkan', cls: 'from-[#8fd0c8] to-[#62aea8]', num: 'text-[#0f2f2e]' },
+          { label: 'Menunggu Pemilik', value: jumlahMenunggu, sub: 'Perlu disetujui', cls: 'from-[#f3e3b8] to-[#e4c985]', num: 'text-[#4a3a0c]' },
+          { label: 'Ditolak', value: jumlahDitolak, sub: 'Perlu diperbaiki', cls: 'from-[#eaf3f9] to-[#cfe2ee]', num: 'text-rose-700' },
+        ].map((k) => (
+          <div
+            key={k.label}
+            className={`rounded-[20px] p-4 bg-gradient-to-br ${k.cls} shadow-[8px_10px_20px_rgba(48,66,92,0.2),-5px_-5px_14px_rgba(255,255,255,0.55),inset_0_1px_0_rgba(255,255,255,0.7)]`}
+          >
+            <div className="text-[13px] font-bold text-slate-700">{k.label}</div>
+            <div className={`text-3xl font-extrabold tabular-nums mt-1 ${k.num}`}>{loading ? '-' : k.value}</div>
+            <div className="text-xs text-slate-600">{k.sub}</div>
+          </div>
+        ))}
       </div>
 
-      {notif && (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] text-emerald-800 flex items-start justify-between gap-3">
-          <span>{notif}</span>
-          <button onClick={() => setNotif('')} className="text-emerald-700 hover:text-emerald-900" aria-label="Tutup pemberitahuan">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {isOwner && jumlahMenunggu > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
-          Ada <b>{jumlahMenunggu}</b> pengajuan yang menunggu persetujuanmu.
-        </div>
-      )}
-
-      {loading ? (
-        <div className="py-14 text-center text-slate-500 flex items-center justify-center gap-2 text-sm">
-          <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> Memuat konten
-        </div>
-      ) : loadError ? (
-        <div className="py-10 text-center text-rose-600 text-sm px-6">{loadError}</div>
-      ) : (
-        <div className="grid gap-4">
-          {BLOK.map((b) => {
-            const st = statusBlok(b.kunci);
-            const dr = draf[b.kunci];
-            const ty = tayang[b.kunci];
-            return (
-              <div
-                key={b.kunci}
-                className="rounded-[20px] border border-white/70 bg-[#f6f8fc] p-5 shadow-[6px_8px_18px_rgba(48,66,92,0.14),-4px_-4px_12px_rgba(255,255,255,0.55)]"
+      {/* Tab dan tabel */}
+      <section className="rounded-[22px] border border-white/70 bg-[#f6f8fc] shadow-[8px_10px_22px_rgba(48,66,92,0.16),-6px_-6px_16px_rgba(255,255,255,0.6)] overflow-hidden">
+        <div className="flex gap-1 px-4 border-b border-slate-200 overflow-x-auto">
+          {tabs.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`px-3 py-3.5 text-[13px] font-bold whitespace-nowrap border-b-2 transition ${
+                tab === t.key ? 'border-blue-600 text-blue-700' : 'border-transparent text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {t.label}
+              <span
+                className={`ml-1.5 rounded-full px-2 py-0.5 text-[11px] ${
+                  tab === t.key ? 'bg-blue-100 text-blue-700' : 'bg-slate-200/70 text-slate-600'
+                }`}
               >
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="font-extrabold text-slate-800 text-[15px]">{b.judul}</h3>
-                    <p className="text-[13px] text-slate-500 mt-1 leading-relaxed">{b.deskripsi}</p>
-                    <div className="mt-2.5 flex flex-wrap items-center gap-2 text-[11px]">
-                      <span className={`px-2.5 py-1 rounded-full font-bold ${st.kelas}`}>{st.label}</span>
-                      {ty && <span className="text-slate-500">Terbit {tgl(ty.diterbitkan_pada)}</span>}
-                      {dr && <span className="text-slate-500">Draf diubah {tgl(dr.diubah_pada)}</span>}
-                    </div>
-                    {dr && dr.status === 'draf' && dr.catatan && (
-                      <p className="mt-2 text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
-                        Catatan Pemilik: {dr.catatan}
-                      </p>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => buka(b)}
-                    className="inline-flex items-center gap-1.5 self-start px-4 py-2 rounded-lg bg-blue-600 text-white text-[13px] font-bold hover:bg-blue-700"
-                  >
-                    <Edit className="w-3.5 h-3.5" /> {isOwner && dr && dr.status === 'menunggu' ? 'Tinjau' : 'Ubah'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
+                {t.count}
+              </span>
+            </button>
+          ))}
         </div>
-      )}
+
+        {(notif || (isOwner && jumlahMenunggu > 0)) && (
+          <div className="px-4 pt-4 space-y-2">
+            {notif && (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-[12.5px] font-medium text-emerald-800 flex items-start justify-between gap-3">
+                <span>{notif}</span>
+                <button onClick={() => setNotif('')} className="text-emerald-700 hover:text-emerald-900" aria-label="Tutup pemberitahuan">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+            {isOwner && jumlahMenunggu > 0 && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12.5px] font-medium text-amber-900">
+                Ada {jumlahMenunggu} pengajuan yang menunggu persetujuanmu.
+              </div>
+            )}
+          </div>
+        )}
+
+        {loading ? (
+          <div className="py-14 text-center text-slate-500 flex items-center justify-center gap-2 text-sm">
+            <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> Memuat konten
+          </div>
+        ) : loadError ? (
+          <div className="py-14 text-center text-rose-600 text-sm px-6">{loadError}</div>
+        ) : tampil.length === 0 ? (
+          <div className="py-14 text-center text-slate-500 text-sm">Tidak ada blok konten di tab ini.</div>
+        ) : (
+          <div className="overflow-x-auto mt-2">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-slate-100/70 border-y border-slate-200 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                <tr>
+                  <th className="py-3 px-5">Blok</th>
+                  <th className="py-3 px-4">Isi saat ini</th>
+                  <th className="py-3 px-4">Status</th>
+                  <th className="py-3 px-5 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200/70">
+                {tampil.map((b) => {
+                  const st = statusBlok(b.kunci);
+                  const dr = draf[b.kunci];
+                  const ty = tayang[b.kunci];
+                  const tinjau = isOwner && dr?.status === 'menunggu';
+                  return (
+                    <tr key={b.kunci} className="hover:bg-blue-50/40 transition-colors">
+                      <td className="py-3.5 px-5 align-top">
+                        <div className="font-bold text-slate-900 text-sm">{b.judul}</div>
+                        <div className="text-[12px] text-slate-500 mt-0.5 max-w-md leading-relaxed">{b.deskripsi}</div>
+                      </td>
+                      <td className="py-3.5 px-4 align-top max-w-[260px]">
+                        <div className="text-[13px] font-semibold text-slate-800 truncate">{ringkasanSaatIni(b)}</div>
+                        <div className="text-[11px] text-slate-500 mt-0.5">
+                          {ty ? `Terbit ${tgl(ty.diterbitkan_pada)}` : 'Belum pernah diterbitkan'}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 align-top whitespace-nowrap">
+                        <span className={`inline-block text-[11px] px-2.5 py-1 rounded-full font-bold ${st.kelas}`}>{st.label}</span>
+                        {dr && <div className="text-[11px] text-slate-500 mt-1">Draf diubah {tgl(dr.diubah_pada)}</div>}
+                        {dr && dr.status === 'draf' && dr.catatan && (
+                          <div className="text-[11px] text-rose-700 mt-1 max-w-[220px] whitespace-normal leading-snug">
+                            Catatan: {dr.catatan}
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3.5 px-5 text-right whitespace-nowrap align-top">
+                        <button
+                          onClick={() => buka(b)}
+                          className={`inline-flex items-center gap-1 text-xs font-semibold px-3 py-2 rounded-lg border transition-colors ${
+                            tinjau
+                              ? 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          {tinjau ? <Eye className="w-3.5 h-3.5" /> : <Edit className="w-3.5 h-3.5" />}
+                          {tinjau ? 'Tinjau' : 'Ubah'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        <div className="px-5 py-3 border-t border-slate-200 text-xs text-slate-500 bg-slate-100/50">
+          Konten yang sudah terbit baru tampil di website setelah website dibangun ulang (npm run build) dan diunggah.
+          Draf tidak pernah terlihat oleh pengunjung.
+        </div>
+      </section>
 
       {def && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
