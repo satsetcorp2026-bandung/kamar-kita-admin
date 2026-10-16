@@ -36,15 +36,29 @@ import {
   Shirt,
   ClipboardCheck,
   Bell,
+  Globe,
+  Smartphone,
+  ChevronDown,
+  Check,
 } from 'lucide-react';
 
 type Role = 'owner' | 'admin' | 'cs';
+type WsKey = 'aplikasi' | 'website';
 type NavItem = { name: string; href: string; icon: React.ComponentType<{ className?: string }>; badgeKey?: 'reports' | 'drivers' | 'sos'; roles?: Role[] };
-type NavGroup = { label: string; items: NavItem[] };
+type NavGroup = { label: string; ws: WsKey; items: NavItem[] };
+
+// Ruang kerja: pilihan di bawah logo yang menentukan isi menu di kiri.
+// Memilih ruang kerja membuka halaman pertamanya; ruang kerja yang aktif
+// ditentukan oleh halaman yang sedang dibuka (jadi tautan langsung tetap benar).
+const WORKSPACES: { key: WsKey; name: string; desc: string; icon: React.ComponentType<{ className?: string }>; home: string }[] = [
+  { key: 'aplikasi', name: 'Aplikasi Pimpim', desc: 'Pesanan, driver, hunian, keuangan', icon: Smartphone, home: '/' },
+  { key: 'website', name: 'Website', desc: 'Teks dan pengaturan website', icon: Globe, home: '/konten-website' },
+];
 
 const navGroups: NavGroup[] = [
   {
     label: 'Operasional',
+    ws: 'aplikasi',
     items: [
       { name: 'Ringkasan', href: '/', icon: LayoutDashboard },
       { name: 'Laporan Pengguna', href: '/laporan', icon: Flag, badgeKey: 'reports' },
@@ -57,7 +71,8 @@ const navGroups: NavGroup[] = [
     ],
   },
   {
-    label: 'PimPim',
+    label: 'Pimpim',
+    ws: 'aplikasi',
     items: [
       { name: 'Driver Pim', href: '/drivers', icon: Bike, badgeKey: 'drivers' },
       { name: 'Pesanan dan Trip', href: '/orders', icon: Route },
@@ -67,6 +82,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Layanan',
+    ws: 'aplikasi',
     items: [
       { name: 'Hunian (Kost & Sewa)', href: '/properties', icon: Building2, roles: ['owner', 'admin'] },
       { name: 'Survei Hunian', href: '/survei-hunian', icon: ClipboardCheck, roles: ['owner', 'admin'] },
@@ -79,6 +95,7 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Keselamatan',
+    ws: 'aplikasi',
     items: [
       { name: 'SOS Perjalanan', href: '/sos-perjalanan', icon: Siren, badgeKey: 'sos' },
       { name: 'Relawan Siaga SOS', href: '/sos', icon: ShieldAlert, roles: ['owner', 'admin'] },
@@ -86,10 +103,18 @@ const navGroups: NavGroup[] = [
   },
   {
     label: 'Pemasaran',
+    ws: 'aplikasi',
     items: [
       { name: 'Banner Promo', href: '/banners', icon: ImageIcon, roles: ['owner', 'admin'] },
       { name: 'Notifikasi', href: '/notifikasi', icon: Bell, roles: ['owner', 'admin'] },
       { name: 'Iklan Promo Terbaik', href: '/iklan', icon: Megaphone, roles: ['owner', 'admin'] },
+    ],
+  },
+  {
+    label: 'Website',
+    ws: 'website',
+    items: [
+      { name: 'Konten Website', href: '/konten-website', icon: Globe, roles: ['owner', 'admin'] },
     ],
   },
 ];
@@ -120,6 +145,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [wsOpen, setWsOpen] = useState(false);
 
   const isLogin = pathname === '/login';
 
@@ -221,6 +247,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         setSearchOpen(true);
       } else if (e.key === 'Escape') {
         setSearchOpen(false);
+        setWsOpen(false);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -228,8 +255,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   }, []);
 
   const canSee = (i: NavItem) => !i.roles || !role || i.roles.includes(role);
-  const visibleGroups = navGroups.map((g) => ({ ...g, items: g.items.filter(canSee) })).filter((g) => g.items.length > 0);
   const currentItem = allItems.find((i) => i.href === pathname || (i.href !== '/' && pathname.startsWith(i.href + '/')));
+  // Ruang kerja aktif mengikuti halaman yang sedang dibuka
+  const wsAktif: WsKey = navGroups.find((g) => currentItem !== undefined && g.items.includes(currentItem))?.ws ?? 'aplikasi';
+  const wsInfo = WORKSPACES.find((w) => w.key === wsAktif) ?? WORKSPACES[0];
+  const WsIcon = wsInfo.icon;
+  // Pemilih hanya muncul kalau ada lebih dari satu ruang kerja yang boleh dilihat perananmu
+  const wsTersedia = WORKSPACES.filter((w) => navGroups.some((g) => g.ws === w.key && g.items.some(canSee)));
+  const visibleGroups = navGroups
+    .filter((g) => g.ws === wsAktif)
+    .map((g) => ({ ...g, items: g.items.filter(canSee) }))
+    .filter((g) => g.items.length > 0);
   const blocked = !!currentItem && !!role && !canSee(currentItem);
   const roleLabel = role === 'owner' ? 'Pemilik' : role === 'cs' ? 'CS' : 'Admin';
   const searchResults = allItems.filter(canSee).filter((i) => i.name.toLowerCase().includes(searchText.trim().toLowerCase())).slice(0, 8);
@@ -237,6 +273,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     setSearchOpen(false);
     setDrawerOpen(false);
     router.push(href);
+  };
+  const pindahWs = (w: WsKey) => {
+    setWsOpen(false);
+    if (w === wsAktif) return;
+    const info = WORKSPACES.find((x) => x.key === w);
+    if (info) router.push(info.home);
   };
 
   const handleLogout = async () => {
@@ -270,7 +312,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </div>
           <h1 className="mt-4 text-lg font-bold text-slate-900">Akun ini bukan admin</h1>
           <p className="mt-1.5 text-sm text-slate-500 leading-relaxed">
-            {email} belum terdaftar sebagai admin PimPim. Hubungi pemilik sistem untuk diberi akses.
+            {email} belum terdaftar sebagai admin Pimpim. Hubungi pemilik sistem untuk diberi akses.
           </p>
           <button
             onClick={handleLogout}
@@ -289,10 +331,53 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             P
           </div>
           <div className="leading-tight">
-            <div className="text-[15px] font-extrabold tracking-tight">PimPim</div>
+            <div className="text-[15px] font-extrabold tracking-tight">Pimpim</div>
             <div className="text-[11.5px] text-[#a9bdd6]">Konsol Admin</div>
           </div>
         </div>
+
+        {wsTersedia.length > 1 && (
+          <div className="px-4 pb-2 shrink-0 relative">
+            <div className="px-1 mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#7f95b5]">Ruang kerja</div>
+            <button
+              type="button"
+              onClick={() => setWsOpen((o) => !o)}
+              className="w-full flex items-center gap-2.5 rounded-xl bg-white/95 text-[#1e3a52] px-3 py-2 text-[13px] font-bold shadow-[0_4px_10px_rgba(0,0,0,0.18)] hover:bg-white transition"
+            >
+              <WsIcon className="w-4 h-4 shrink-0 text-[#2d6a86]" />
+              <span className="flex-1 text-left truncate">{wsInfo.name}</span>
+              <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${wsOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {wsOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setWsOpen(false)} />
+                <div className="absolute left-4 right-4 top-full mt-1 z-20 rounded-xl bg-white text-slate-800 shadow-xl border border-slate-100 overflow-hidden">
+                  {wsTersedia.map((w) => {
+                    const Icon = w.icon;
+                    const aktif = w.key === wsAktif;
+                    return (
+                      <button
+                        key={w.key}
+                        type="button"
+                        onClick={() => pindahWs(w.key)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition ${aktif ? 'bg-slate-50' : 'hover:bg-slate-50'}`}
+                      >
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#e3eef5] text-[#2d6a86]">
+                          <Icon className="w-4 h-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[13px] font-bold text-slate-800 truncate">{w.name}</span>
+                          <span className="block text-[11px] text-slate-500 truncate">{w.desc}</span>
+                        </span>
+                        {aktif && <Check className="w-4 h-4 shrink-0 text-[#2d6a86]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        )}
 
         <div className="px-4 pb-2 shrink-0">
           <button
